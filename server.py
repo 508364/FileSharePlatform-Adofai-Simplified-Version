@@ -36,7 +36,6 @@ import hmac
 from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
 from urllib3.util.retry import Retry
-from requests import Session
 from requests.adapters import HTTPAdapter
 from flask import Flask, render_template, send_from_directory, send_file, request, jsonify, abort, session, redirect, url_for, flash
 
@@ -758,9 +757,10 @@ def upload():
     if not file.filename or '.' not in file.filename:
         return jsonify({"status": "error", "message": "无效的文件名"})
     
-    # 只允许上传.zip文件
-    if not file.filename.lower().endswith('.zip'):
-        return jsonify({"status": "error", "message": "只允许上传.zip文件"})
+    # 允许上传.zip和.adofai文件
+    allowed_extensions = ['.zip', '.adofai']
+    if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
+        return jsonify({"status": "error", "message": "只允许上传.zip和.adofai文件"})
     
     file.seek(0, os.SEEK_END)
     file_size = file.tell()
@@ -999,8 +999,6 @@ def preview(filename):
     
     return send_from_directory(upload_dir, filename)
 
-
-from flask import make_response
 
 @app.route('/preview/<zip_filename>/<inner_filename>')
 def preview_inner_file(zip_filename, inner_filename):
