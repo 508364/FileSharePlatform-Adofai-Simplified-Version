@@ -188,15 +188,36 @@ def verify_password(password, hashed_password):
     """验证密码是否匹配"""
     return hash_password(password) == hashed_password
 
+def encrypt_password(password):
+    """使用对称密钥加密密码"""
+    # 使用用户提供的对称密钥
+    key = b'ccfb9b1700#63d70009b6_36ce8721ae?4894900701\693b4b1ba6-5d51823868$083a803ff1}6b6f30c75a\3d43ec2bb7%2877b23160?eb20aa241b-578552ec50+60bfe13c'
+    # 简单的XOR加密
+    encrypted = ''.join(chr(ord(c) ^ key[i % len(key)]) for i, c in enumerate(password))
+    return encrypted.encode('utf-8').hex()
+
+def decrypt_password(encrypted_password):
+    """解密密码"""
+    # 使用用户提供的对称密钥
+    key = b'ccfb9b1700#63d70009b6_36ce8721ae?4894900701\693b4b1ba6-5d51823868$083a803ff1}6b6f30c75a\3d43ec2bb7%2877b23160?eb20aa241b-578552ec50+60bfe13c'
+    # 解密
+    encrypted_bytes = bytes.fromhex(encrypted_password)
+    decrypted = ''.join(chr(b ^ key[i % len(key)]) for i, b in enumerate(encrypted_bytes))
+    return decrypted
+
+def verify_password_encrypted(password, encrypted_password):
+    """验证加密密码是否匹配"""
+    return encrypt_password(password) == encrypted_password
+
 def save_config():
     """保存当前配置到配置文件"""
     try:
         # 创建配置副本以避免修改原始配置
         config_to_save = system_config.copy()
         
-        # 如果存在密码字段，对其进行哈希处理
+        # 如果存在密码字段，对其进行加密处理
         if 'admin_password' in config_to_save:
-            config_to_save['admin_password'] = hash_password(config_to_save['admin_password'])
+            config_to_save['admin_password'] = encrypt_password(config_to_save['admin_password'])
         
         with open(CONFIG_FILE,'w', encoding='utf-8-sig') as f:  # 使用utf-8-sig编码保存
             json.dump(config_to_save,f,indent=4,ensure_ascii=False)
@@ -657,8 +678,8 @@ def admin_login_post():
     print(f"收到管理员登录请求: 用户名={username}")
     
     
-    # 验证用户名和密码(使用哈希验证)
-    if username == system_config['admin_user'] and verify_password(password, system_config['admin_password']):
+    # 验证用户名和密码(使用加密验证)
+    if username == system_config['admin_user'] and verify_password_encrypted(password, system_config['admin_password']):
         session_token = os.urandom(24).hex()
         session['admin_token'] = session_token
         return jsonify({"status": "success", "token": session_token})
@@ -673,8 +694,8 @@ def admin_change_password():
     new_password = request.form.get('new_password')
     confirm_password = request.form.get('confirm_password')
     
-    # 验证当前密码(使用哈希验证)
-    if not verify_password(current_password, system_config['admin_password']):
+    # 验证当前密码(使用加密验证)
+    if not verify_password_encrypted(current_password, system_config['admin_password']):
         flash('当前密码不正确', 'error')
         return redirect(url_for('admin'))
     
