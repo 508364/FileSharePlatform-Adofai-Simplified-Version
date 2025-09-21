@@ -67,7 +67,7 @@ DEFAULT_CONFIG = {
     'max_file_size': 100,              # 单个文件最大大小(MB)
     'max_total_size': 1024,            # 总存储空间大小(MB)
     'app_name': '文件共享平台',         # 应用名称
-    'app_version': '1.1',              # 应用版本
+    'app_version': 'v1.2',              # 应用版本
     'admin_user': 'admin',             # 管理员用户名
     'admin_password': 'admin@123',     # 管理员密码
     'port': 5000,                      # 服务端口
@@ -77,8 +77,8 @@ DEFAULT_CONFIG = {
 # 系统当前配置 - 初始化为默认配置的副本
 system_config = DEFAULT_CONFIG.copy()
 
-# ===============================================
-# 更新检查功能
+# ============================================== 
+# 配置文件检查与更新功能 
 # ===============================================
 
 def check_for_updates(current_version):
@@ -113,7 +113,7 @@ def check_for_updates(current_version):
         # 版本比较
         if latest_version and latest_version > current_version:
             # 构建下载链接
-            download_url = f'https://github.com/{owner}/{repo}/releases/tag/FileSharePlatform-v{latest_version}'
+            download_url = f'https://github.com/{owner}/{repo}/releases/tag/{latest_version}'
             
             return {
                 'current_version': current_version,
@@ -137,6 +137,68 @@ SERVICE_START_TIME = datetime.now()
 # 系统初始化与配置管理
 # ==============================================
 
+def check_and_update_config_file():
+    """
+    检查并更新配置文件
+    
+    确保配置文件包含所有必需的配置项，并更新应用版本
+    
+    Returns:
+        bool: 配置文件是否被更新
+    """
+    config_updated = False
+    
+    # 确保配置文件存在
+    if not os.path.exists(CONFIG_FILE):
+        save_config()
+        print("配置文件不存在，已创建默认配置文件")
+        return True
+    
+    try:
+        # 读取当前配置文件
+        with open(CONFIG_FILE, 'r', encoding='utf-8-sig') as f:
+            current_config = json.load(f)
+        
+        # 创建一个新的配置字典，包含所有默认配置项
+        new_config = DEFAULT_CONFIG.copy()
+        
+        # 更新新配置字典，保留现有的非默认配置值
+        for key, value in current_config.items():
+            if key in new_config and key != 'app_version':  # 排除版本号，确保版本号始终为最新
+                new_config[key] = value
+            else:
+                print(f"发现未知配置项: {key}")
+        
+        # 检查配置是否有变化
+        config_has_changes = False
+        for key in new_config:
+            if key not in current_config or new_config[key] != current_config.get(key):
+                config_has_changes = True
+                break
+        
+        # 如果配置有变化，保存新配置
+        if config_has_changes:
+            with open(CONFIG_FILE, 'w', encoding='utf-8-sig') as f:
+                json.dump(new_config, f, indent=4, ensure_ascii=False)
+            config_updated = True
+            print("配置文件已更新")
+            
+            # 显示更新的配置项
+            for key in new_config:
+                if key not in current_config:
+                    print(f"  + 添加配置项: {key} = {new_config[key]}")
+                elif new_config[key] != current_config[key]:
+                    print(f"  ~ 更新配置项: {key} = {new_config[key]} (原: {current_config[key]})")
+    except Exception as e:
+        print(f"配置文件检查与更新失败: {e}")
+        # 创建默认配置文件
+        with open(CONFIG_FILE, 'w', encoding='utf-8-sig') as f:
+            json.dump(DEFAULT_CONFIG, f, indent=4, ensure_ascii=False)
+        print("已创建默认配置文件")
+        config_updated = True
+    
+    return config_updated
+
 def init_system():
     """
     初始化系统环境
@@ -152,7 +214,10 @@ def init_system():
     if not os.path.exists(system_config['upload_folder']):
         os.makedirs(system_config['upload_folder'])
     
-    # 加载保存的配置
+    # 检查并更新配置文件
+    config_updated = check_and_update_config_file()
+    
+    # 重新加载保存的配置
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8-sig') as f:
@@ -941,6 +1006,34 @@ def api_update_config():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
+@app.route('/api/check_config_file', methods=['GET'], endpoint='check_config_file')
+@require_admin_token
+def api_check_config_file():
+    """
+    检查并更新配置文件API
+    
+    此API允许管理员在不重启服务器的情况下，
+    手动触发配置文件的检查和更新操作。
+    """
+    try:
+        # 调用检查和更新配置文件的函数
+        config_updated = check_and_update_config_file()
+        
+        # 重新加载配置
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r', encoding='utf-8-sig') as f:
+                saved_config = json.load(f)
+                for key in saved_config:
+                    if key in system_config:
+                        system_config[key] = saved_config[key]
+        
+        if config_updated:
+            return jsonify({"status": "success", "message": "配置文件已更新", "config": system_config})
+        else:
+            return jsonify({"status": "success", "message": "配置文件已是最新状态", "config": system_config})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # 页面路由
 @app.route('/')
@@ -959,6 +1052,11 @@ def index():
         max_file_size=system_config['max_file_size'],
         usage_percent=disk['usage_percent']
     )
+
+@app.route('/bug_report')
+def bug_report():
+    """Bug报告页面"""
+    return render_template('bug_report.html')
 
 
 @app.route('/download/<filename>')
@@ -1003,6 +1101,7 @@ def preview(filename):
 @app.route('/preview/<zip_filename>/<inner_filename>')
 def preview_inner_file(zip_filename, inner_filename):
     """预览zip文件内部的文件"""
+    from flask import make_response
     import urllib.parse
     import os
     import tempfile
@@ -1387,7 +1486,7 @@ if __name__ == '__main__':
     os.chmod(system_config['upload_folder'], 0o777)  # 确保可写
     
     print("服务已启动")
-    print(f"应用名称: {system_config['app_name']} v{system_config['app_version']}")
+    print(f"应用名称: {system_config['app_name']} {system_config['app_version']}")
     print(f"上传目录: {system_config['upload_folder']}")
     print(f"总空间上限: {convert_size(system_config['max_total_size'] * 1024 * 1024)}")
     print(f"服务启动时间: {SERVICE_START_TIME}")
@@ -1403,4 +1502,4 @@ if __name__ == '__main__':
     else:
         print("\n当前已是最新版本。\n")
 
-    app.run(host='0.0.0.0', port=system_config['port'], debug=True)
+    app.run(host='::', port=system_config['port'], debug=True, threaded=True)

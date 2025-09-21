@@ -416,9 +416,23 @@
                             }, 1500);
                         } else {
                             uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> ${response.message || '上传失败'}</span>`;
+                            // 上传失败也自动刷新文件列表
+                            setTimeout(() => {
+                                uploadProgress.classList.add('d-none');
+                                uploadContent.classList.remove('d-none');
+                                uploadProgressBar.style.width = '0%';
+                                loadFiles();
+                            }, 2000);
                         }
                     } catch (e) {
                         uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> 上传失败</span>`;
+                        // 上传失败也自动刷新文件列表
+                        setTimeout(() => {
+                            uploadProgress.classList.add('d-none');
+                            uploadContent.classList.remove('d-none');
+                            uploadProgressBar.style.width = '0%';
+                            loadFiles();
+                        }, 2000);
                     }
                 } else {
                     try {
@@ -427,6 +441,13 @@
                     } catch (e) {
                         uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> 上传失败</span>`;
                     }
+                    // 上传失败也自动刷新文件列表
+                    setTimeout(() => {
+                        uploadProgress.classList.add('d-none');
+                        uploadContent.classList.remove('d-none');
+                        uploadProgressBar.style.width = '0%';
+                        loadFiles();
+                    }, 2000);
                 }
             });
             

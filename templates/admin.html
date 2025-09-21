@@ -800,9 +800,7 @@
             <button class="logout-btn" onclick="location.href='/captcha_settings'">
                 <i class="bi bi-shield-check btn-sm"></i> 验证码设置
             </button>
-            <button class="logout-btn" onclick="location.href='/admin/github_clone'">
-                <i class="bi bi-github btn-sm"></i> GitHub克隆下载
-            </button>
+            <!-- GitHub克隆功能已移除 -->
             <button class="logout-btn" onclick="location.href='{{ url_for('admin_logout') }}'">
                 <i class="bi bi-box-arrow-right btn-sm"></i> 退出
             </button>
@@ -1028,7 +1026,7 @@
                             </a>
                         </div>
                         <div>
-                            <a href="/file_detail?file={{ file.filename }}">查看详情</a>
+                            <a href="/file_detail?file={{ file.filename }}&return_to=admin">查看详情</a>
                         </div>
                         <div class="file-size">
                             {% if file.size >= 1048576 %}

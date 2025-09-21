@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug 报告 - 文件共享平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --success: #2ec4b6;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --text-color: #333;
+            --bg-color: #f5f7fb;
+            --card-bg: #ffffff;
+            --header-bg: linear-gradient(135deg, var(--primary), var(--secondary));
+            --border-color: #dee2e6;
+            --input-bg: #ffffff;
+            --text-muted: #6c757d;
+        }
+        
+        [data-theme="dark"] {
+            --primary: #5a76ff;
+            --secondary: #4a5ad4;
+            --success: #2ec4b6;
+            --light: #1a1c23;
+            --dark: #f8f9fa;
+            --text-color: #e0e0e0;
+            --bg-color: #121418;
+            --card-bg: #1e2229;
+            --header-bg: linear-gradient(135deg, #2a3a8d, #1a1a5e);
+            --border-color: #2d333b;
+            --input-bg: #252b33;
+            --text-muted: #a0a8b0;
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .navbar {
+            background: var(--header-bg) !important;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        }
+        
+        .form-control {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        
+        .form-control:focus {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--primary);
+        }
+        
+        .theme-switch-container {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            z-index: 1000;
+        }
+        
+        #theme-toggle {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">
+                <i class="bi bi-cloud-arrow-up-fill me-2"></i>
+                文件共享平台
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">返回首页</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="mb-0"><i class="bi bi-bug me-2"></i>Bug 报告</h2>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-4">感谢您帮助我们改进文件共享平台！如果您遇到任何问题，请在此页面报告。</p>
+                        
+                        <div class="mb-5">
+                            <h3><i class="bi bi-list-check me-2"></i>已知问题</h3>
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>上传错误的文件后需要手动刷新界面</span>
+                                    <span class="badge bg-warning">已修复</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>铺面信息里的"警告"显示错误</span>
+                                    <span class="badge bg-warning">已修复</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>音频无法正常播放</span>
+                                    <span class="badge bg-danger">处理中</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>深色模式切换时会闪烁</span>
+                                    <span class="badge bg-warning">已修复</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>搜索功能不可用</span>
+                                    <span class="badge bg-warning">已移除</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>管理员界面导航问题</span>
+                                    <span class="badge bg-warning">已修复</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>GitHub克隆功能404</span>
+                                    <span class="badge bg-warning">已修复</span>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h3><i class="bi bi-pencil-square me-2"></i>提交新的Bug报告</h3>
+                            <form id="bugReportForm">
+                                <div class="mb-3">
+                                    <label for="bugTitle" class="form-label">问题标题</label>
+                                    <input type="text" class="form-control" id="bugTitle" placeholder="请输入问题的简短描述" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="bugDescription" class="form-label">详细描述</label>
+                                    <textarea class="form-control" id="bugDescription" rows="4" placeholder="请详细描述您遇到的问题、复现步骤以及期望的行为" required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="bugSeverity" class="form-label">严重程度</label>
+                                    <select class="form-control" id="bugSeverity" required>
+                                        <option value="low">低 - 不影响主要功能</option>
+                                        <option value="medium" selected>中 - 影响部分功能</option>
+                                        <option value="high">高 - 严重影响使用</option>
+                                        <option value="critical">严重 - 系统无法使用</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="contactInfo" class="form-label">联系方式（可选）</label>
+                                    <input type="text" class="form-control" id="contactInfo" placeholder="如果需要回复，请留下您的联系方式">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-send me-2"></i>提交报告
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="theme-switch-container">
+        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-moon"></i> 深色模式
+        </button>
+    </div>
+
+    <script>
+        // 深色模式切换
+        document.addEventListener('DOMContentLoaded', function() {
+            // 从localStorage恢复主题设置
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('theme-toggle').innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
+            }
+            
+            // 主题切换按钮事件
+            document.getElementById('theme-toggle').addEventListener('click', function() {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                
+                this.innerHTML = newTheme === 'light' ? '<i class="bi bi-moon"></i> 深色模式' : '<i class="bi bi-sun"></i> 浅色模式';
+            });
+            
+            // Bug报告表单提交
+            document.getElementById('bugReportForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // 这里只是模拟提交，实际应用中应该发送到服务器
+                alert('Bug报告已提交！感谢您的反馈。\n\n注意：当前版本仅为演示，报告不会实际发送。');
+                this.reset();
+            });
+        });
+    </script>
+</body>
+</html>

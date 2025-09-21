@@ -20,9 +20,7 @@
             --card-bg: #ffffff;
             --bg-color: #f5f7fb;
         }
-        
 
-        
         [data-theme="dark"] {
             --primary: #5a76ff;
             --primary-dark: #4a5ad4;
@@ -335,6 +333,19 @@
             transition: background-color 0.3s, color 0.3s, border-color 0.3s;
         }
     </style>
+    
+    <!-- 预加载主题设置，避免闪烁 -->
+    <script>
+        // 在DOM加载前就应用主题，避免闪烁
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 
+                            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="theme-switch-container">
@@ -359,9 +370,21 @@
                 <a href="#" id="download-btn" class="btn btn-light">
                     <i class="bi bi-download"></i> 下载文件
                 </a>
-                <a href="/" class="btn btn-outline-light">
+                <a href="" id="back-btn" class="btn btn-outline-light">
                     <i class="bi bi-arrow-left"></i> 返回
                 </a>
+                <script>
+                    // 处理返回按钮逻辑
+                    const params = new URLSearchParams(window.location.search);
+                    const returnTo = params.get('return_to');
+                    const backBtn = document.getElementById('back-btn');
+                    
+                    if (returnTo === 'admin') {
+                        backBtn.href = '/admin';
+                    } else {
+                        backBtn.href = '/';
+                    }
+                </script>
             </div>
         </div>
         
@@ -592,6 +615,9 @@
                         <div class="text-center">
                             <video controls class="video-player">
                                 <source src="${videoPath}" type="video/mp4">
+                                <source src="${videoPath}" type="video/webm">
+                                <source src="${videoPath}" type="video/quicktime">
+                                <source src="${videoPath}" type="video/x-matroska">
                                 您的浏览器不支持视频播放。
                             </video>
                         </div>
@@ -605,6 +631,8 @@
                         <div class="text-center">
                             <audio controls class="audio-player">
                                 <source src="${audioPath}" type="audio/mpeg">
+                                <source src="${audioPath}" type="audio/ogg">
+                                <source src="${audioPath}" type="audio/wav">
                                 您的浏览器不支持音频播放。
                             </audio>
                         </div>
@@ -681,12 +709,26 @@
                     // 构建音频播放器HTML
                     let audioPlayerHTML = '';
                     if (audioFile) {
-                        const audioPath = `/preview/${encodeURIComponent(filename)}/${encodeURIComponent(audioFile)}`;
+                        // 确保路径正确编码
+                        const safeFilename = encodeURIComponent(filename).replace(/\+/g, '%20');
+                        const safeAudioFile = encodeURIComponent(audioFile).replace(/\+/g, '%20');
+                        const audioPath = `/preview/${safeFilename}/${safeAudioFile}`;
+                        
+                        // 根据文件扩展名设置正确的MIME类型
+                        const audioExtension = audioFile.split('.').pop().toLowerCase();
+                        let audioMimeType = 'audio/mpeg'; // 默认MP3
+                        if (audioExtension === 'ogg') audioMimeType = 'audio/ogg';
+                        if (audioExtension === 'wav') audioMimeType = 'audio/wav';
+                        if (audioExtension === 'flac') audioMimeType = 'audio/flac';
+
                         audioPlayerHTML = `
                             <div class="mt-3">
                                 <h6><i class="bi bi-file-earmark-music"></i> 音频播放</h6>
-                                <audio controls class="w-100">
+                                <audio controls class="w-100" onError="this.onerror=null;this.src='${audioPath}';">
+                                    <source src="${audioPath}" type="${audioMimeType}">
                                     <source src="${audioPath}" type="audio/mpeg">
+                                    <source src="${audioPath}" type="audio/ogg">
+                                    <source src="${audioPath}" type="audio/wav">
                                     您的浏览器不支持音频播放。
                                 </audio>
                                 <p class="mt-2"><strong>音频文件:</strong> ${audioFile}</p>
@@ -701,11 +743,27 @@
                             <div class="mt-3">
                                 <h6><i class="bi bi-file-earmark-play"></i> 视频播放(部分浏览器会出现无法播放)</h6>
                                 ${videoFiles.map(vid => {
-                                    const videoPath = `/preview/${encodeURIComponent(filename)}/${encodeURIComponent(vid)}`;
+                                    // 确保路径正确编码
+                                    const safeFilename = encodeURIComponent(filename).replace(/\+/g, '%20');
+                                    const safeVid = encodeURIComponent(vid).replace(/\+/g, '%20');
+                                    const videoPath = `/preview/${safeFilename}/${safeVid}`;
+                                    
+                                    // 根据文件扩展名设置正确的MIME类型
+                                    const videoExtension = vid.split('.').pop().toLowerCase();
+                                    let videoMimeType = 'video/mp4'; // 默认MP4
+                                    if (videoExtension === 'webm') videoMimeType = 'video/webm';
+                                    if (videoExtension === 'mov') videoMimeType = 'video/quicktime';
+                                    if (videoExtension === 'avi') videoMimeType = 'video/x-msvideo';
+                                    if (videoExtension === 'mkv') videoMimeType = 'video/x-matroska';
+                                    
                                     return `
                                         <div class="mb-3">
-                                            <video controls class="w-100">
+                                            <video controls class="w-100" onError="this.onerror=null;this.src='${videoPath}';">
+                                                <source src="${videoPath}" type="${videoMimeType}">
                                                 <source src="${videoPath}" type="video/mp4">
+                                                <source src="${videoPath}" type="video/webm">
+                                                <source src="${videoPath}" type="video/quicktime">
+                                                <source src="${videoPath}" type="video/x-matroska">
                                                 您的浏览器不支持视频播放。
                                             </video>
                                             <p class="mt-2"><strong>视频文件:</strong> ${vid}</p>
@@ -728,7 +786,7 @@
                                 <div class="col-md-6">
                                     <p><strong>难度:</strong> ${levelInfo.difficulty || '未知'}</p>
                                     <p><strong>BPM:</strong> ${levelInfo.bpm || '未知'}</p>
-                                    <p><strong>警告:</strong> ${levelInfo.seizureWarning ? '是' : '否'}</p>
+                                    <p><strong>光敏性癫痫警告:</strong> ${levelInfo.seizureWarning ? '是' : '否'}</p>
                                 </div>
                             </div>
                             
@@ -916,6 +974,10 @@
                 document.documentElement.setAttribute('data-theme', 'dark');
                 themeIcon.className = 'bi bi-sun';
                 themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                themeIcon.className = 'bi bi-moon';
+                themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
             }
             
             // 切换主题
