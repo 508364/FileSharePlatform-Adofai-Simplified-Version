@@ -370,20 +370,14 @@
                 <a href="#" id="download-btn" class="btn btn-light">
                     <i class="bi bi-download"></i> 下载文件
                 </a>
-                <a href="" id="back-btn" class="btn btn-outline-light">
+                <button id="back-btn" class="btn btn-outline-light">
                     <i class="bi bi-arrow-left"></i> 返回
-                </a>
+                </button>
                 <script>
-                    // 处理返回按钮逻辑
-                    const params = new URLSearchParams(window.location.search);
-                    const returnTo = params.get('return_to');
-                    const backBtn = document.getElementById('back-btn');
-                    
-                    if (returnTo === 'admin') {
-                        backBtn.href = '/admin';
-                    } else {
-                        backBtn.href = '/';
-                    }
+                    // 处理返回按钮逻辑 - 使用浏览器历史记录返回上一页
+                    document.getElementById('back-btn').addEventListener('click', function() {
+                        window.history.back();
+                    });
                 </script>
             </div>
         </div>

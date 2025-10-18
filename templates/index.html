@@ -3,61 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件共享平台</title>
+    <title>用户登录 - 文件共享平台</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <style>
-        :root {
-            --primary: #4361ee;
-            --secondary: #3a0ca3;
-            --success: #2ec4b6;
-            --light: #f8f9fa;
-            --dark: #212529;
-        }
-        
-        .file-card {
-            transition: all 0.3s ease;
-            border-radius: 10px;
-            overflow: hidden;
-            border: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            height: 100%;
-        }
-        
-        .file-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
-        }
-        
-        .file-icon {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-        }
-        
-        .progress-container {
-            height: 8px;
-            border-radius: 4px;
-            background-color: #e9ecef;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            background-color: var(--primary);
-            transition: width 0.4s ease;
-        }
-        
-        .storage-card {
-            background: linear-gradient(135deg, #4361ee, #3a0ca3);
-            color: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        /* 深色模式变量 */
         :root {
             --primary: #4361ee;
             --secondary: #3a0ca3;
@@ -71,7 +21,7 @@
             --border-color: #dee2e6;
             --input-bg: #ffffff;
             --text-muted: #6c757d;
-            --storage-bg: linear-gradient(135deg, #4361ee, #3a0ca3);
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         
         [data-theme="dark"] {
@@ -87,63 +37,152 @@
             --border-color: #2d333b;
             --input-bg: #252b33;
             --text-muted: #a0a8b0;
-            --storage-bg: linear-gradient(135deg, #2a3a8d, #1a1a5e);
+            --shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
         
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
             transition: background-color 0.3s, color 0.3s;
         }
         
-        .file-card {
-            transition: all 0.3s ease;
-            border-radius: 10px;
+        .container-fluid {
+            height: 100vh;
             overflow: hidden;
-            border: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        
+        /* 重置row和col的默认padding */
+        .container-fluid .row {
+            margin: 0 !important;
             height: 100%;
-            background-color: var(--card-bg);
-            color: var(--text-color);
         }
         
-        .file-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+        .container-fluid .col-lg-6 {
+            padding: 0 !important;
         }
         
-        .file-icon {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-            color: var(--primary);
-        }
-        
-        .progress-container {
-            height: 8px;
-            border-radius: 4px;
-            background-color: var(--input-bg);
-            overflow: hidden;
-            margin: 10px 0;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            background-color: var(--primary);
-            transition: width 0.4s ease;
-        }
-        
-        .storage-card {
-            background: var(--storage-bg);
+        /* 左侧面板样式 */
+        .left-panel {
+            background: var(--header-bg);
             color: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
         }
-
+        
+        .icon-container {
+            font-size: 6rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .left-panel h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .left-panel p {
+            font-size: 1.1rem;
+            text-align: center;
+            max-width: 80%;
+            opacity: 0.9;
+        }
+        
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        /* 右侧登录面板样式 */
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 35px;
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .login-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-icon {
+            font-size: 4rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+        
+        .form-control {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            padding: 12px 15px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .form-control:focus {
+            background-color: var(--input-bg);
+            color: var(--text-color);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            padding: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+            transform: translateY(-2px);
+        }
+        
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+        
+        .error-message {
+            background-color: rgba(237, 85, 101, 0.1);
+            border: 1px solid rgba(237, 85, 101, 0.3);
+            color: #ed5565;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
         .theme-switch-container {
             position: fixed;
-            bottom: 15px;
-            right: 15px;
+            bottom: 20px;
+            right: 20px;
             z-index: 1000;
         }
         
@@ -151,522 +190,141 @@
             background-color: var(--card-bg);
             color: var(--text-color);
             border: 1px solid var(--border-color);
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
         }
         
-        .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            color: var(--text-color);
-            transition: background-color 0.3s, border-color 0.3s, color 0.3s;
+        #theme-toggle:hover {
+            transform: translateY(-2px);
         }
         
-        .form-control {
-            background-color: var(--input-bg);
-            color: var(--text-color);
-            border: 1px solid var(--border-color);
-            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        .admin-link {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.3s ease;
         }
         
-        .form-control:focus {
-            background-color: var(--input-bg);
-            color: var(--text-color);
-            border-color: var(--primary);
+        .admin-link:hover {
+            color: var(--secondary);
+            text-decoration: underline;
         }
         
-        .border {
-            border: 1px solid var(--border-color) !important;
+        /* 响应式设计 */
+        @media (max-width: 992px) {
+            .left-panel {
+                display: none;
+            }
+            
+            .col-lg-6:last-child {
+                padding: 20px;
+            }
         }
         
-        .text-muted {
-            color: var(--text-muted) !important;
-            transition: color 0.3s;
+        @media (max-width: 768px) {
+            /* 平板设备优化 */
+            .login-card {
+                padding: 30px;
+                max-width: 350px;
+            }
         }
         
-        .navbar {
-            background: var(--header-bg) !important;
-        }
-        
-        #drop-area {
-            background-color: var(--input-bg);
-            border: 1px dashed var(--border-color);
-            transition: background-color 0.3s, border-color 0.3s;
+        @media (max-width: 576px) {
+            /* 移动设备优化 */
+            .login-card {
+                padding: 25px;
+                max-width: 100%;
+                box-shadow: none;
+                border-radius: 10px;
+            }
+            
+            .col-lg-6:last-child {
+                padding: 15px;
+            }
+            
+            .form-control {
+                padding: 10px 12px;
+                font-size: 16px; /* 防止iOS缩放 */
+            }
+            
+            .btn-primary {
+                padding: 10px;
+                font-size: 16px; /* 防止iOS缩放 */
+            }
+            
+            /* 增加触摸目标大小 */
+            button, a {
+                min-height: 44px;
+                min-width: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(90deg, var(--primary), var(--secondary));">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="#">
-                <i class="bi bi-cloud-arrow-up-fill me-2"></i>
-                文件共享平台
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="refreshFiles">
-                            <i class="bi bi-arrow-clockwise"></i> 刷新
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/admin">管理员</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <div class="theme-switch-container">
+        <button id="theme-toggle" class="btn btn-sm">
+            <i class="bi bi-moon"></i> 深色模式
+        </button>
+    </div>
 
-    <div class="container py-4">
-        <!-- 存储空间卡片 -->
-        <div class="storage-card mb-4">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
-                    <small class="opacity-75">已使用 <span id="disk-used">0</span> / <span id="max-storage">0</span></small>
+    <div class="container-fluid p-0">
+        <div class="row h-100">
+            <!-- 左侧面板 -->
+            <div class="col-lg-6 d-none d-lg-block left-panel">
+                <div class="icon-container text-center">
+                    <i class="bi bi-cloud-arrow-up"></i>
                 </div>
-                <div class="text-end">
-                    <h2 class="mb-0" id="usage-percent">0%</h2>
-                    <small class="opacity-75">使用率</small>
-                </div>
+                <h1>文件共享系统</h1>
+                <p class="text-center">安全、高效的文件存储与共享平台，让您的数据随时随地触手可及</p>
             </div>
-            <div class="progress-container mt-3">
-                <div class="progress-bar" id="storage-progress"></div>
-            </div>
-        </div>
 
-        <!-- 上传区域 -->
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="card-title mb-0"><i class="bi bi-cloud-upload me-2"></i>上传文件</h5>
-                    <span class="badge bg-primary" id="max-file-size">最大可以上传{{ max_file_size }}MB</span>
-                </div>
-                
-                <div class="border rounded p-5 text-center mb-3" id="drop-area">
-                    <div id="upload-content">
-                        <i class="bi bi-cloud-arrow-up display-4 text-muted mb-3"></i>
-                        <h6>拖放文件到此处上传</h6>
-                        <p class="text-muted small">或点击选择文件</p>
-                        <input type="file" id="file-input" class="d-none">
-                        <button class="btn btn-primary px-4" id="browse-btn">浏览文件</button>
-                    </div>
-                    <div id="upload-progress" class="d-none">
-                        <h5 class="mb-3" id="upload-filename">上传中...</h5>
-                        <div class="progress-container mx-auto" style="max-width: 400px;">
-                            <div class="progress-bar" id="upload-progress-bar" style="width: 0%"></div>
+            <!-- 右侧登录面板 -->
+            <div class="col-lg-6 d-flex align-items-center justify-content-center p-4">
+                <div class="login-card">
+                    <div class="login-header">
+                        <div class="login-icon">
+                            <i class="bi bi-lock-fill"></i>
                         </div>
-                        <div class="mt-2" id="upload-stats">0% • 0 KB/s • 0s 剩余</div>
+                        <h2>用户登录</h2>
+                        <p class="text-muted">请输入您的凭据以访问文件共享平台</p>
                     </div>
+                    
+                    <div id="login-error" class="error-message">
+                        <i class="bi bi-exclamation-circle"></i> <span id="error-text">登录失败，请检查用户名和密码</span>
+                    </div>
+                    
+                    <form id="login-form">
+                        <div class="mb-4">
+                            <label for="username" class="form-label">用户名</label>
+                            <input type="text" class="form-control" id="username" placeholder="请输入用户名" required>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="password" class="form-label">密码</label>
+                            <input type="password" class="form-control" id="password" placeholder="请输入密码" required>
+                        </div>
+                        
+                        <div class="mb-4 form-check">
+                            <input type="checkbox" class="form-check-input" id="remember-me">
+                            <label class="form-check-label text-muted" for="remember-me">记住我</label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>登录
+                        </button>
+                        
+                        <div class="text-center">
+                            <p class="text-muted">
+                                管理员请<a href="/admin/login" class="admin-link">点击这里</a>登录
+                            </p>
+                        </div>
+                    </form>
                 </div>
-            </div>
-        </div>
-
-        <!-- 文件列表 -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5><i class="bi bi-files me-2"></i>文件列表</h5>
-            <div class="d-flex align-items-center">
-                <div class="input-group" style="max-width: 300px;">
-                    <input type="text" class="form-control" placeholder="搜索功能不可用" id="search-input" disabled>
-                    <button class="btn btn-outline-secondary" type="button" disabled>
-                        <i class="bi bi-search"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="file-list" class="row g-4">
-            <!-- 动态加载文件卡片 -->
-            <div class="col-12 text-center py-5" id="loading-files">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">加载中...</span>
-                </div>
-                <p class="mt-2">正在加载文件列表...</p>
             </div>
         </div>
     </div>
-
-    <script>
-        // 获取系统配置
-        fetch('/api/system/config')
-            .then(res => res.json())
-            .then(config => {
-                if (config.web_ui) {
-                    document.title = config.web_ui.title || '文件共享平台';
-                    document.querySelector('.navbar-brand').innerText = config.web_ui.brand;
-                }
-                document.getElementById('max-file-size').innerText = `最大可以上传${config.max_file_size}MB`;
-            });
-
-        // 初始化文件上传功能
-        const dropArea = document.getElementById('drop-area');
-        const fileInput = document.getElementById('file-input');
-        const browseBtn = document.getElementById('browse-btn');
-        const uploadContent = document.getElementById('upload-content');
-        const uploadProgress = document.getElementById('upload-progress');
-        const uploadProgressBar = document.getElementById('upload-progress-bar');
-        const uploadStats = document.getElementById('upload-stats');
-        
-        // 浏览文件按钮点击
-        browseBtn.addEventListener('click', () => fileInput.click());
-        
-        // 文件输入变化
-        fileInput.addEventListener('change', handleFiles);
-        
-        // 拖拽事件处理
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, highlight, false);
-        });
-        
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, unhighlight, false);
-        });
-        
-        function highlight() {
-            dropArea.classList.add('bg-light');
-        }
-        
-        function unhighlight() {
-            dropArea.classList.remove('bg-light');
-        }
-        
-        // 文件放置处理
-        dropArea.addEventListener('drop', handleDrop, false);
-        
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles({ target: { files } });
-        }
-        
-        // 处理上传文件
-        function handleFiles(e) {
-            const files = e.target.files;
-            if (files.length === 0) return;
-            
-            const file = files[0];
-            uploadFile(file);
-        }
-        
-        // 上传文件函数
-        function uploadFile(file) {
-            // 显示上传状态
-            uploadContent.classList.add('d-none');
-            uploadProgress.classList.remove('d-none');
-            document.getElementById('upload-filename').innerText = file.name;
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            const startTime = Date.now();
-            let lastLoaded = 0;
-            let lastTime = startTime;
-            
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/upload');
-            
-            xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    uploadProgressBar.style.width = `${percent}%`;
-                    
-                    // 计算传输速度
-                    const now = Date.now();
-                    const timeDiff = (now - lastTime) / 1000; // 秒
-                    
-                    if (timeDiff > 0.5) {
-                        const loadedDiff = e.loaded - lastLoaded;
-                        const speed = Math.round(loadedDiff / timeDiff / 1024); // KB/s
-                        
-                        // 计算剩余时间
-                        const remainingBytes = e.total - e.loaded;
-                        const remainingTime = Math.round(remainingBytes / (speed * 1024));
-                        
-                        uploadStats.innerText = `${percent}% • ${speed} KB/s • ${remainingTime}s 剩余`;
-                        
-                        lastLoaded = e.loaded;
-                        lastTime = now;
-                    }
-                }
-            });
-            
-            xhr.addEventListener('load', () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        if (response.status === 'success') {
-                            uploadStats.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill"></i> 上传完成</span>`;
-                            setTimeout(() => {
-                                uploadProgress.classList.add('d-none');
-                                uploadContent.classList.remove('d-none');
-                                uploadProgressBar.style.width = '0%';
-                                loadFiles();
-                            }, 1500);
-                        } else {
-                            uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> ${response.message || '上传失败'}</span>`;
-                            // 上传失败也自动刷新文件列表
-                            setTimeout(() => {
-                                uploadProgress.classList.add('d-none');
-                                uploadContent.classList.remove('d-none');
-                                uploadProgressBar.style.width = '0%';
-                                loadFiles();
-                            }, 2000);
-                        }
-                    } catch (e) {
-                        uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> 上传失败</span>`;
-                        // 上传失败也自动刷新文件列表
-                        setTimeout(() => {
-                            uploadProgress.classList.add('d-none');
-                            uploadContent.classList.remove('d-none');
-                            uploadProgressBar.style.width = '0%';
-                            loadFiles();
-                        }, 2000);
-                    }
-                } else {
-                    try {
-                        const err = JSON.parse(xhr.response);
-                        uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> ${err.message || '上传失败'}</span>`;
-                    } catch (e) {
-                        uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> 上传失败</span>`;
-                    }
-                    // 上传失败也自动刷新文件列表
-                    setTimeout(() => {
-                        uploadProgress.classList.add('d-none');
-                        uploadContent.classList.remove('d-none');
-                        uploadProgressBar.style.width = '0%';
-                        loadFiles();
-                    }, 2000);
-                }
-            });
-            
-            xhr.addEventListener('error', () => {
-                uploadStats.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> 网络错误</span>`;
-            });
-            
-            xhr.send(formData);
-        }
-        
-// 加载文件列表
-function loadFiles() {
-    document.getElementById('file-list').innerHTML = `
-        <div class="col-12 text-center py-5" id="loading-files">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">加载中...</span>
-            </div>
-            <p class="mt-2">正在加载文件列表...</p>
-        </div>
-    `;
-    
-
-    fetch('/api/files')
-        .then(res => res.json())
-        .then(data => {
-            // 更新存储空间信息
-            document.getElementById('disk-used').textContent = formatBytes(data.disk_used);
-            document.getElementById('max-storage').textContent = formatBytes(data.max_storage);
-            const usagePercent = Math.round((data.disk_used / data.max_storage) * 100);
-            document.getElementById('usage-percent').textContent = `${usagePercent}%`;
-            document.getElementById('storage-progress').style.width = `${usagePercent}%`;
-            
-            // 渲染文件列表
-            if (data.files.length === 0) {
-                document.getElementById('file-list').innerHTML = `
-                    <div class="col-12 text-center py-5">
-                        <i class="bi bi-folder-x display-4 text-muted mb-3"></i>
-                        <h5 class="text-muted">暂无文件</h5>
-                        <p>上传第一个文件开始使用</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let html = '';
-            data.files.forEach(file => {
-                // 日期显示
-                let displayDate = "";
-                if (file.upload_time && !isNaN(file.upload_time)) {
-                    const modifiedDate = new Date(file.modified * 1000).toLocaleDateString();
-                    displayDate = modifiedDate;
-                }
-                
-                // 文件大小显示
-                let displaySize = "未知大小";
-                if (file.size && !isNaN(file.size)) {
-                    displaySize = formatBytes(file.size);
-                }
-                
-                // 文件名显示
-                const fileName = file.filename || file.name || "未命名文件";
-                
-                // 下载链接
-                const downloadLink = `/download/${encodeURIComponent(fileName)}`;
-                
-                html += `
-                    <div class="col-md-6 col-lg-4 col-xl-3">
-                        <div class="card file-card">
-                            <div class="card-body">
-                                <div class="file-icon text-primary">
-                                    <i class="bi ${getFileIcon(getFileType(fileName))}"></i>
-                                </div>
-                                <h6 class="card-title text-truncate" title="${fileName}">${fileName}</h6>
-                                <div class="d-flex justify-content-between small text-muted mb-2">
-                                    <span>${displaySize}</span>
-                                    <span>${displayDate}</span>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mt-3">
-                                    <a href="${downloadLink}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-download me-1"></i>下载
-                                    </a>
-                                    <a href="/file_detail?file=${encodeURIComponent(fileName)}" class="btn btn-sm btn-outline-primary">查看详情</a>
-                                    <span class="text-muted small">
-                                        <i class="bi bi-arrow-down-circle"></i> <!-- ${file.download_count || 0} -->
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            document.getElementById('file-list').innerHTML = html;
-        })
-        .catch(error => {
-            console.error('加载文件列表失败:', error);
-            document.getElementById('file-list').innerHTML = `
-                <div class="col-12 text-center py-5">
-                    <i class="bi bi-exclamation-triangle display-4 text-danger mb-3"></i>
-                    <h5 class="text-danger">加载失败</h5>
-                    <p>无法获取文件列表，请刷新重试</p>
-                </div>
-            `;
-        });
-}
-
-// 辅助函数：获取文件类型
-function getFileType(filename) {
-    if (!filename) return 'unknown';
-    
-    const extension = filename.split('.').pop().toLowerCase();
-    const types = {
-        // 图片类型
-        jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', bmp: 'image', 
-        webp: 'image', svg: 'image', tiff: 'image',
-        
-        // 文档类型
-        doc: 'document', docx: 'document', xls: 'document', 
-        xlsx: 'document', ppt: 'document', pptx: 'document', txt: 'document',
-        rtf: 'document', odt: 'document', ods: 'document', odp: 'document',
-        
-        // 压缩文件
-        zip: 'archive', rar: 'archive', '7z': 'archive', tar: 'archive', 
-        gz: 'archive', bz2: 'archive',
-        
-        // 音频文件
-        mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio', aac: 'audio',
-        
-        // 视频文件
-        mp4: 'video', mov: 'video', avi: 'video', mkv: 'video', wmv: 'video',
-        flv: 'video', webm: 'video',
-        
-        // 代码文件
-        js: 'code', html: 'code', css: 'code', py: 'code', java: 'code', 
-        cpp: 'code', c: 'code', cs: 'code', php: 'code', json: 'code', 
-        xml: 'code', sql: 'code',
-        
-        // 其他
-        exe: 'filetype', dll: 'executable', apk: 'android', 
-        iso: 'disk_image', dmg: 'disk_image', aktp: 'aktp'
-    };
-    
-    return types[extension] || 'unknown';
-}
-
-// 辅助函数：获取文件图标
-function getFileIcon(fileType) {
-    const icons = {
-        image: 'bi-file-image',
-        document: 'bi-file-earmark-text',
-        archive: 'bi-file-earmark-zip',
-        audio: 'bi-file-earmark-music',
-        video: 'bi-file-earmark-play',
-        code: 'bi-file-earmark-code',
-        filetype: 'bi bi-filetype-exe',
-        android: 'bi bi-android2',
-        executable: 'bi-file-earmark-binary',
-        disk_image: 'bi-file-earmark-break',
-        aktp: 'bi-file-earmark-lock',
-        unknown: 'bi-file-earmark'
-    };
-    
-    return icons[fileType] || 'bi-file-earmark';
-}
-
-// 辅助函数：格式化字节大小
-function formatBytes(bytes, decimals = 2) {
-    if (bytes === 0 || isNaN(bytes)) return '0 Bytes';
-    
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-}
-
-        
-        // 初始化刷新按钮
-        document.getElementById('refreshFiles').addEventListener('click', (e) => {
-            e.preventDefault();
-            loadFiles();
-        });
-        
-        // 搜索功能
-        const searchInput = document.getElementById('search-input');
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase().trim();
-            
-            // 如果没有搜索词，显示所有文件
-            if (!searchTerm) {
-                document.querySelectorAll('.file-card').forEach(card => {
-                    card.closest('.col').style.display = '';
-                });
-                return;
-            }
-            
-            // 搜索匹配的文件
-            document.querySelectorAll('.file-card').forEach(card => {
-                const title = card.querySelector('.card-title').textContent.toLowerCase();
-                if (title.includes(searchTerm)) {
-                    card.closest('.col').style.display = '';
-                } else {
-                    card.closest('.col').style.display = 'none';
-                }
-            });
-        });
-               
-        // 页面加载时初始化
-        window.addEventListener('load', () => {
-            loadFiles();
-            
-            // 配置拖放区域
-            highlight = () => dropArea.style.border = '2px dashed #4361ee';
-            unhighlight = () => dropArea.style.border = '';
-        });
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         // 深色模式切换功能
@@ -703,12 +361,66 @@ function formatBytes(bytes, decimals = 2) {
                     themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
                 }
             });
+            
+            // 登录表单处理
+            const loginForm = document.getElementById('login-form');
+            const loginError = document.getElementById('login-error');
+            const errorText = document.getElementById('error-text');
+            
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                const rememberMe = document.getElementById('remember-me').checked;
+                
+                // 显示加载状态
+                const submitBtn = loginForm.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 登录中...';
+                
+                // 隐藏之前的错误信息
+                loginError.style.display = 'none';
+                
+                // 实际登录请求
+                fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 恢复按钮状态
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    
+                    if (data.status === 'success') {
+                        // 登录成功，根据服务器返回的重定向URL跳转
+                        const redirectUrl = data.redirect || '/user';
+                        console.log('登录成功，准备重定向到:', redirectUrl);
+                        window.location.href = redirectUrl;
+                    } else {
+                        // 登录失败，显示错误信息
+                        errorText.textContent = data.message || '登录失败，请检查用户名和密码';
+                        loginError.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    // 恢复按钮状态
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    
+                    // 显示网络错误
+                    errorText.textContent = '网络错误，请检查连接后重试';
+                    loginError.style.display = 'block';
+                    console.error('登录请求失败:', error);
+                });
+            });
         });
     </script>
-    <div class="theme-switch-container">
-        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-moon"></i> 深色模式
-        </button>
-    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

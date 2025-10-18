@@ -1,196 +1,664 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-        <meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理员登录</title>
+    <title>管理员登录 - 文件共享平台</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
         :root {
-            --primary: #4a76ff;
-            --primary-dark: #3a65e9;
-            --secondary: #3a0ca3;
-            --success: #2ec4b6;
-            --danger: #e71d36;
-            --warning: #ff9f1c;
-            --light: #f8f9fa;
-            --dark: #212529;
-            --bg: #ffffff;
+            --primary: #4361ee;
+            --primary-hover: #3a0ca3;
+            --text-color: #333;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --bg-color: #f8f9fa;
             --card-bg: #ffffff;
-            --text: #212529;
-            --border: #dee2e6;
+            --shadow-color: rgba(0, 0, 0, 0.1);
         }
 
         [data-theme="dark"] {
-            --bg: #1e2125;
-            --text: #f8f9fa;
-            --border: #343a40;
-            --card-bg: #2d3135;
-            --primary: #4a76ff;
-            --primary-dark: #3a65e9;
-        }
-        
-        .card {
-            border-radius: 10px;
-            border: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            background-color: var(--card-bg);
-            color: var(--text);
+            --primary: #4cc9f0;
+            --primary-hover: #4895ef;
+            --text-color: #f8f9fa;
+            --text-muted: #adb5bd;
+            --border-color: #495057;
+            --bg-color: #212529;
+            --card-bg: #2d3748;
+            --shadow-color: rgba(0, 0, 0, 0.3);
         }
 
-        [data-theme="dark"] .card {
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
         }
-        
-        .stat-card {
+
+        /* 移除默认的bootstrap container-fluid的padding */
+        .container-fluid {
+            padding: 0 !important;
+        }
+
+        /* 确保行元素占据整个高度 */
+        .row.h-100 {
+            margin: 0 !important;
+        }
+
+        .left-panel {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        .icon-container {
+            font-size: 6rem;
+            margin-bottom: 20px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+            100% {
+                transform: translateY(0px);
+            }
+        }
+
+        .left-panel h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .left-panel p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            max-width: 80%;
+            opacity: 0.9;
+        }
+
+        .login-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px var(--shadow-color);
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
             transition: all 0.3s ease;
         }
-        
-        .stat-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-icon {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .login-header h2 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 8px;
+            padding: 12px 15px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.2);
+            outline: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .error-message {
+            background-color: rgba(255, 87, 87, 0.1);
+            border-left: 4px solid #ff5757;
+            color: #ff5757;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+        }
+
+        .error-message i {
+            margin-right: 10px;
+        }
+
+        .login-options {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 25px;
+        }
+
+        .login-option {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .login-option.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .login-option:hover:not(.active) {
+            color: var(--text-color);
+            background-color: rgba(67, 97, 238, 0.05);
         }
         
-        .chart-container {
-            height: 280px;
+        .private-key-textarea {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            min-height: 200px;
+            resize: vertical;
+        }
+
+        /* 文件上传区域样式 */
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--primary);
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+
+        .file-upload-icon {
+            font-size: 3rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+        }
+
+        .file-upload-area.drag-over {
+            border-color: var(--primary);
+            background-color: rgba(67, 97, 238, 0.1);
+        }
+
+        /* 密码可见性切换 */
+        .password-container {
             position: relative;
         }
-        
-        .card-icon {
-            font-size: 2rem;
-            opacity: 0.8;
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: color 0.3s ease;
         }
-        
-        .admin-sidebar {
-            background: linear-gradient(180deg, var(--secondary), var(--primary));
-            color: white;
-            min-height: 100vh;
+
+        .toggle-password:hover {
+            color: var(--primary);
         }
-        
-        .admin-content {
-            background-color: var(--bg);
-            min-height: 100vh;
+
+        /* 主题切换按钮 */
+        .theme-switch-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
         }
-        
-        .table-container {
-            max-height: 400px;
-            overflow-y: auto;
+
+        .user-link {
+            color: var(--primary);
+            text-decoration: none;
+            transition: all 0.3s ease;
         }
-        
-        .config-form label {
-            font-weight: 500;
+
+        .user-link:hover {
+            text-decoration: underline;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 992px) {
+            .left-panel {
+                display: none;
+            }
+            
+            .col-lg-6:last-child {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            /* 平板设备优化 */
+            .login-card {
+                padding: 30px;
+                max-width: 400px;
+            }
+            
+            .file-upload-area {
+                padding: 25px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            /* 移动设备优化 */
+            .login-card {
+                padding: 25px;
+                max-width: 100%;
+                box-shadow: none;
+                border-radius: 10px;
+            }
+            
+            .col-lg-6:last-child {
+                padding: 15px;
+            }
+            
+            .form-control {
+                padding: 10px 12px;
+                font-size: 16px; /* 防止iOS缩放 */
+            }
+            
+            .btn-primary {
+                padding: 10px;
+                font-size: 16px; /* 防止iOS缩放 */
+                min-height: 44px;
+            }
+            
+            /* 增加触摸目标大小 */
+            button, a {
+                min-height: 44px;
+                min-width: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .login-options {
+                flex-direction: column;
+            }
+            
+            .login-option {
+                margin-bottom: 5px;
+                border-bottom: none;
+                border-left: 3px solid transparent;
+            }
+            
+            .login-option.active {
+                border-bottom: none;
+                border-left-color: var(--primary);
+            }
         }
     </style>
 </head>
 <body>
-    <div id="theme-toggle-container" style="position: absolute; top: 20px; right: 20px;">
-        <button id="theme-toggle" class="theme-toggle btn btn-sm">
+    <div class="theme-switch-container">
+        <button id="theme-toggle" class="btn btn-sm">
             <i class="bi bi-moon"></i> 深色模式
         </button>
     </div>
 
-    <div id="admin-login" class="d-flex justify-content-center align-items-center" style="min-height: 100vh; background-color: var(--bg); color: var(--text);">
-        <div class="card p-4" style="width: 400px;">
-            <h3 class="mb-4">管理员登录</h3>
-            <div class="mb-3">
-            <label class="form-label">用户名</label>
-            <input type="text" class="form-control" id="admin-username" value="admin" style="background-color: var(--card-bg); color: var(--text); border-color: var(--border);">
-        </div>
-            <div class="mb-3">
-            <label class="form-label">密码</label>
-            <input type="password" class="form-control" id="admin-password" value="" style="background-color: var(--card-bg); color: var(--text); border-color: var(--border);">
-        </div>
-            <button class="btn btn-primary w-100" id="admin-login-btn">登录</button>
-            <a href="/" class="btn btn-home w-100">
-                <i class="bi bi-house-door me-2"></i>返回主页
-            </a>
-            <!-- 添加错误提示 -->
-            <div id="login-error" class="mt-3 text-danger d-none"></div>
+    <div class="container-fluid p-0">
+        <div class="row h-100">
+            <!-- 左侧面板 -->
+            <div class="col-lg-6 d-none d-lg-block left-panel">
+                <div class="icon-container">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                </div>
+                <h1>管理员登录</h1>
+                <p>安全、高效的文件存储与共享平台，让您的数据随时随地触手可及</p>
+            </div>
+
+            <!-- 右侧登录面板 -->
+            <div class="col-lg-6 d-flex align-items-center justify-content-center">
+                <div class="login-card">
+                    <div class="login-header">
+                        <div class="login-icon">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </div>
+                        <h2>管理员登录</h2>
+                        <p class="text-muted">请输入您的管理员凭据</p>
+                    </div>
+                    
+                    <div id="login-error" class="error-message">
+                        <i class="bi bi-exclamation-circle"></i> <span id="error-text">登录失败，请检查凭据</span>
+                    </div>
+                    
+                    <div class="login-options">
+                        <div class="login-option active" data-target="private-key-login-form">使用私钥文件登录</div>
+                        <div class="login-option" data-target="manual-key-login-form">手动输入私钥内容</div>
+                    </div>
+                    
+                    <!-- 私钥登录表单 -->
+                    <div id="private-key-login-form">
+                        <form id="admin-key-form">
+                            <div class="mb-4">
+                                <label class="form-label">上传RSA私钥</label>
+                                <div class="file-upload-area" id="file-upload-area">
+                                    <input type="file" id="private-key-file" class="d-none" accept=".pem,.key">
+                                    <div class="file-upload-icon">
+                                        <i class="bi bi-file-earmark-lock"></i>
+                                    </div>
+                                    <p id="upload-text">点击或拖拽私钥文件到此处</p>
+                                    <p class="text-muted small">支持 .pem 或 .key 格式</p>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="key-passphrase" class="form-label">私钥密码（如设置）</label>
+                                <input type="password" class="form-control" id="key-passphrase" placeholder="如私钥已加密，请输入密码">
+                                <div class="form-text">如果您的私钥文件有密码保护，请在此处输入</div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100 mb-3">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>使用私钥登录
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div id="manual-key-login-form" class="d-none">
+                        <form id="admin-manual-key-form">
+                            <div class="mb-4">
+                                <label class="form-label">手动输入RSA私钥内容</label>
+                                <textarea class="form-control private-key-textarea" id="private-key-content" placeholder="请在此处粘贴您的RSA私钥内容..."></textarea>
+                                <div class="form-text">请确保私钥格式正确，包含完整的BEGIN和END标记</div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="manual-key-passphrase" class="form-label">私钥密码（如设置）</label>
+                                <input type="password" class="form-control" id="manual-key-passphrase" placeholder="如私钥已加密，请输入密码">
+                                <div class="form-text">如果您的私钥有密码保护，请在此处输入</div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100 mb-3">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>使用私钥登录
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div class="text-center">
+                        <p class="text-muted">
+                            返回<a href="/" class="user-link">用户登录</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         // 深色模式切换功能
-        const themeToggle = document.getElementById('theme-toggle');
-        const themeIcon = themeToggle.querySelector('i');
-
-        // 检查本地存储或系统偏好
-        const savedTheme = localStorage.getItem('theme') || 
-                        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-
-        // 初始化主题
-        if (savedTheme === 'dark') {
-            document.documentElement.dataset.theme = 'dark';
-            themeIcon.className = 'bi bi-sun';
-            themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
-        } else {
-            document.documentElement.dataset.theme = 'light';
-            themeIcon.className = 'bi bi-moon';
-            themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
-        }
-
-        // 切换主题
-        themeToggle.addEventListener('click', function() {
-            if (document.documentElement.dataset.theme === 'dark') {
-                document.documentElement.dataset.theme = 'light';
-                localStorage.setItem('theme', 'light');
-                themeIcon.className = 'bi bi-moon';
-                themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
-            } else {
-                document.documentElement.dataset.theme = 'dark';
-                localStorage.setItem('theme', 'dark');
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = themeToggle.querySelector('i');
+            
+            // 检查本地存储或系统偏好
+            const savedTheme = localStorage.getItem('theme') || 
+                            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
                 themeIcon.className = 'bi bi-sun';
                 themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                themeIcon.className = 'bi bi-moon';
+                themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
             }
-        });
-
-        document.getElementById('admin-login-btn').addEventListener('click', function() {
-            const username = document.getElementById('admin-username').value;
-            const password = document.getElementById('admin-password').value;
             
-            fetch('/admin/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ username, password }),
-                redirect: 'manual' // 手动处理重定向
-            })
-            .then(response => {
-                console.log('响应状态码:', response.status);
-                console.log('响应头:', Array.from(response.headers.entries()));
-                if (response.status === 200) return response.json();
-                if (response.status === 302) {
-                    // 处理重定向
-                    const redirectUrl = response.headers.get('Location');
-                    console.log('重定向URL:', redirectUrl);
-                    if (redirectUrl) {
-                        window.location.href = redirectUrl;
-                        return Promise.reject('Redirecting...');
-                    }
-                }
-                throw new Error('登录失败');
-            })
-            .then(data => {
-                if (data.status === 'success') {
-                    // 登录成功，跳转管理后台
-                    window.location.href = '/admin';
+            // 切换主题
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                if (currentTheme === 'dark') {
+                    document.documentElement.removeAttribute('data-theme');
+                    localStorage.setItem('theme', 'light');
+                    themeIcon.className = 'bi bi-moon';
+                    themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
                 } else {
-                    showError(data.message || '无效凭据');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                    themeIcon.className = 'bi bi-sun';
+                    themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
                 }
-            })
-            .catch(error => {
-                showError(error.message);
             });
+            
+            // 移除登录方式切换，默认显示私钥登录表单
+            
+            // 文件上传区域处理
+            const fileUploadArea = document.getElementById('file-upload-area');
+            const privateKeyFile = document.getElementById('private-key-file');
+            const uploadText = document.getElementById('upload-text');
+            
+            fileUploadArea.addEventListener('click', function() {
+                privateKeyFile.click();
+            });
+            
+            // 拖拽功能
+            fileUploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                fileUploadArea.classList.add('drag-over');
+            });
+            
+            fileUploadArea.addEventListener('dragleave', function() {
+                fileUploadArea.classList.remove('drag-over');
+            });
+            
+            fileUploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                fileUploadArea.classList.remove('drag-over');
+                
+                if (e.dataTransfer.files.length) {
+                    privateKeyFile.files = e.dataTransfer.files;
+                    updateUploadText(privateKeyFile.files[0].name);
+                }
+            });
+            
+            privateKeyFile.addEventListener('change', function() {
+                if (this.files.length) {
+                    updateUploadText(this.files[0].name);
+                }
+            });
+            
+            function updateUploadText(filename) {
+                uploadText.innerHTML = `<span class="text-primary"><i class="bi bi-check-circle"></i> 已选择: ${filename}</span>`;
+            }
+            
+            // 初始化错误处理变量
+            const loginError = document.getElementById('login-error');
+            const errorText = document.getElementById('error-text');
+            
+            // 错误显示辅助函数
+            function showError(message) {
+                errorText.textContent = message;
+                loginError.style.display = 'block';
+            }
+            
+            // 登录选项切换逻辑
+            document.querySelectorAll('.login-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    // 移除所有活动状态
+                    document.querySelectorAll('.login-option').forEach(opt => {
+                        opt.classList.remove('active');
+                    });
+                    
+                    // 添加当前活动状态
+                    this.classList.add('active');
+                    
+                    // 隐藏所有表单
+                    document.querySelectorAll('#private-key-login-form, #manual-key-login-form').forEach(form => {
+                        form.classList.add('d-none');
+                    });
+                    
+                    // 显示目标表单
+                    const target = this.getAttribute('data-target');
+                    document.getElementById(target).classList.remove('d-none');
+                });
+            });
+            
+            // 私钥文件登录表单处理
+            const adminKeyForm = document.getElementById('admin-key-form');
+            
+            adminKeyForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (!privateKeyFile.files.length) {
+                    showError('请选择私钥文件');
+                    return;
+                }
+                
+                const file = privateKeyFile.files[0];
+                const passphrase = document.getElementById('key-passphrase').value;
+                
+                // 检查文件类型
+                const fileName = file.name.toLowerCase();
+                if (!fileName.endsWith('.key') && !fileName.endsWith('.pem')) {
+                    showError('请上传.key或.pem格式的私钥文件');
+                    return;
+                }
+                
+                // 显示加载状态
+                const submitBtn = adminKeyForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-2"></i>登录中...';
+                
+                // 隐藏之前的错误信息
+                loginError.style.display = 'none';
+                
+                // 构建表单数据
+                const formData = new FormData();
+                formData.append('private_key', file);
+                formData.append('passphrase', passphrase);
+                formData.append('login_type', 'file');
+                
+                console.log('提交私钥登录请求，文件类型:', file.type);
+                
+                // 发送请求到服务器验证
+                fetch('/admin/login', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>使用私钥登录';
+                    
+                    if (data.status === 'success') {
+                        window.location.href = data.redirect || '/admin';
+                    } else {
+                        showError(data.message || '登录失败，请重试');
+                    }
+                })
+                .catch(error => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>使用私钥登录';
+                    showError('网络错误，请重试');
+                    console.error('私钥登录请求失败:', error);
+                });
+            });
+            
+            // 手动输入私钥内容登录表单处理
+            const adminManualKeyForm = document.getElementById('admin-manual-key-form');
+            
+            adminManualKeyForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const privateKeyContent = document.getElementById('private-key-content').value.trim();
+                const passphrase = document.getElementById('manual-key-passphrase').value;
+                
+                if (!privateKeyContent) {
+                    showError('请输入私钥内容');
+                    return;
+                }
+                
+                // 显示加载状态
+                const submitBtn = adminManualKeyForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-2"></i>登录中...';
+                
+                // 隐藏之前的错误信息
+                loginError.style.display = 'none';
+                
+                // 构建表单数据
+                const formData = new FormData();
+                formData.append('private_key_content', privateKeyContent);
+                formData.append('passphrase', passphrase);
+                formData.append('login_type', 'manual');
+                
+                // 发送请求到服务器验证
+                fetch('/admin/login', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>使用私钥登录';
+                    
+                    if (data.status === 'success') {
+                        window.location.href = data.redirect || '/admin';
+                    } else {
+                        showError(data.message || '登录失败，请重试');
+                    }
+                })
+                .catch(error => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>使用私钥登录';
+                    showError('网络错误，请重试');
+                    console.error('手动私钥登录请求失败:', error);
+                });
+            });
+            
+
         });
         
-        function showError(msg) {
-            const errorEl = document.getElementById('login-error');
-            errorEl.textContent = msg;
-            errorEl.classList.remove('d-none');
-        }
+
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

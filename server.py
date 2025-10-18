@@ -46,30 +46,56 @@ from flask import Flask, render_template, send_from_directory, send_file, reques
 
 # Flask应用实例
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # 添加密钥用于session管理
+# 重置Flask配置，使用最基本的配置确保session正常工作
+# 使用固定secret_key确保会话一致性
+app.secret_key = 'f9d9c7e8b6a5d4c3b2a1'
+# 只设置必要的会话过期时间
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+
+
+# 用户登录检查装饰器
+def login_required(f):
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        try:
+            # 检查session对象是否存在
+            if session is None:
+                app.logger.error("会话对象不存在，重定向到登录页")
+                return redirect(url_for('index'))
+            
+            # 记录session状态以便调试
+            session_keys = list(session.keys()) if session else []
+            app.logger.info(f"访问受保护页面，session内容: {session_keys}")
+            
+            # 检查是否登录
+            if 'user_logged_in' not in session:
+                app.logger.info(f"会话验证失败: 'user_logged_in'不在session中，重定向到登录页")
+                return redirect(url_for('index'))
+            
+            # 验证登录状态值
+            if not session.get('user_logged_in', False):
+                app.logger.info(f"会话验证失败: 'user_logged_in'值为False，重定向到登录页")
+                return redirect(url_for('index'))
+            
+            # 验证通过，继续处理
+            app.logger.info(f"会话验证成功，继续访问受保护页面")
+            return f(*args, **kwargs)
+        except Exception as e:
+            # 捕获所有可能的异常并记录
+            app.logger.error(f"会话验证过程中发生错误: {str(e)}")
+            return redirect(url_for('index'))
+    return decorated_function
 
 # 线程锁 - 用于确保文件操作的线程安全
 upload_lock = threading.Lock()
-
-# GitHub镜像克隆队列及相关状态管理
-github_clone_queue = queue.Queue()
-github_clone_tasks = {}
-github_clone_lock = threading.Lock()
-active_cloners = {}  # 当前活跃的克隆任务
-
-# 离线下载任务存储
-OFFLINE_TASKS = {}
-OFFLINE_QUEUE = queue.Queue()
 
 # 系统配置默认值
 DEFAULT_CONFIG = {
     'upload_folder': 'uploads',        # 文件上传目录
     'max_file_size': 100,              # 单个文件最大大小(MB)
     'max_total_size': 1024,            # 总存储空间大小(MB)
-    'app_name': '文件共享平台',         # 应用名称
-    'app_version': 'v1.2',              # 应用版本
-    'admin_user': 'admin',             # 管理员用户名
-    'admin_password': 'admin@123',     # 管理员密码
+    'app_name': '文件共享平台-adofai特别版',         # 应用名称
+    'app_version': 'v1.4',             # 应用版本
     'port': 5000,                      # 服务端口
     'network_interface': 'auto',       # 网络接口配置
 }
@@ -279,9 +305,11 @@ def save_config():
         # 创建配置副本以避免修改原始配置
         config_to_save = system_config.copy()
         
-        # 如果存在密码字段，对其进行加密处理
+        # 删除可能存在的密码字段（不再使用密码验证机制）
         if 'admin_password' in config_to_save:
-            config_to_save['admin_password'] = encrypt_password(config_to_save['admin_password'])
+            del config_to_save['admin_password']
+        if 'admin_user' in config_to_save:
+            del config_to_save['admin_user']
         
         with open(CONFIG_FILE,'w', encoding='utf-8-sig') as f:  # 使用utf-8-sig编码保存
             json.dump(config_to_save,f,indent=4,ensure_ascii=False)
@@ -539,7 +567,7 @@ def get_system_resources():
         }
     except Exception as e:
         print(f"获取系统资源失败: {e}")
-        # 返回模拟数据
+        # 返回数据
         return { 
             'cpu_percent': '获取系统资源失败',
             'mem_percent': '获取系统资源失',
@@ -559,6 +587,8 @@ def require_admin_token(func):
     管理员认证装饰器
     
     检查请求是否包含有效的管理员令牌,用于保护需要管理员权限的接口
+    对于Web界面访问，重定向到登录页面
+    对于API访问，返回403错误
     
     Args:
         func:.需要保护的视图函数
@@ -576,10 +606,14 @@ def require_admin_token(func):
         # 其次检查请求头
         token = request.headers.get('X-Admin-Token')
         if token and token == session.get('admin_token'):
-            
             return func(*args, **kwargs)
-            
-        return jsonify({"status": "error", "message": "未授权访问"}), 403
+        
+        # 判断是否为API请求（通过Accept头或URL路径判断）
+        if request.headers.get('Accept') == 'application/json' or request.path.startswith('/api/'):
+            return jsonify({"status": "error", "message": "未授权访问"}), 403
+        
+        # 对于Web界面访问，重定向到登录页面
+        return redirect('/admin/login')
     
     return wrapper
 
@@ -675,13 +709,122 @@ def convert_size(size_bytes):
 # ===============================================
 
 # 管理员相关路由
+@app.route('/admin/users', methods=['GET', 'POST'])
+@require_admin_token
+def admin_users():
+    """管理员用户管理API - 使用username类和password类进行用户识别"""
+    try:
+        # GET请求 - 获取用户列表
+        if request.method == 'GET':
+            users = []
+            users_file = os.path.join('user', 'user.json')
+            if os.path.exists(users_file):
+                with open(users_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                    # 从users数组中提取用户名
+                    if 'users' in user_data:
+                        for user in user_data['users']:
+                            users.append(user.get('username'))
+            return jsonify({'status': 'success', 'users': users})
+        
+        # POST请求 - 处理用户管理操作
+        if request.method == 'POST':
+            # 检查是否为JSON请求
+            if not request.is_json:
+                return jsonify({'status': 'error', 'message': '无效的请求格式'}), 400
+        
+        data = request.get_json()
+        action = data.get('action')
+        username_value = data.get('username')
+        password_value = data.get('password')
+        
+        # 验证必要参数
+        if not action or not username_value:
+            return jsonify({'status': 'error', 'message': '缺少必要参数'}), 400
+        
+        # 读取现有用户数据
+        users_file = os.path.join('user', 'user.json')
+        user_data = {'users': []}
+        if os.path.exists(users_file):
+            with open(users_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+                if 'users' not in user_data:
+                    user_data['users'] = []
+        
+        users = user_data['users']
+        
+        # 执行相应操作
+        if action == 'add':
+            # 检查用户是否已存在
+            for user in users:
+                if user.get('username') == username_value:
+                    return jsonify({'status': 'error', 'message': '用户名已存在'}), 400
+            
+            # 密码长度验证
+            if len(password_value) < 6:
+                return jsonify({'status': 'error', 'message': '密码长度至少为6位'}), 400
+            
+            # 使用username类和password类的结构添加新用户
+            new_user = {
+                'username': username_value,
+                'password': password_value
+            }
+            users.append(new_user)
+            message = '用户添加成功'
+            
+        elif action == 'edit':
+            # 查找并更新用户
+            user_found = False
+            for user in users:
+                if user.get('username') == username_value:
+                    # 密码长度验证
+                    if len(password_value) < 6:
+                        return jsonify({'status': 'error', 'message': '密码长度至少为6位'}), 400
+                    
+                    # 更新用户密码
+                    user['password'] = password_value
+                    user_found = True
+                    message = '用户更新成功'
+                    break
+            
+            if not user_found:
+                return jsonify({'status': 'error', 'message': '用户不存在'}), 404
+            
+        elif action == 'delete':
+            # 防止删除默认测试用户
+            if username_value == 'testuser':
+                return jsonify({'status': 'error', 'message': '不能删除默认测试用户'}), 403
+            
+            # 查找并删除用户
+            user_found = False
+            for i, user in enumerate(users):
+                if user.get('username') == username_value:
+                    del users[i]
+                    user_found = True
+                    message = '用户删除成功'
+                    break
+            
+            if not user_found:
+                return jsonify({'status': 'error', 'message': '用户不存在'}), 404
+            
+        else:
+            return jsonify({'status': 'error', 'message': '无效的操作类型'}), 400
+        
+        # 保存更新后的用户数据
+        os.makedirs('user', exist_ok=True)
+        with open(users_file, 'w', encoding='utf-8') as f:
+            json.dump(user_data, f, ensure_ascii=False, indent=4)
+        
+        return jsonify({'status': 'success', 'message': message})
+        
+    except Exception as e:
+        print(f"用户管理错误: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'服务器错误: {str(e)}'}), 500
+
 @app.route('/admin')
+@require_admin_token
 def admin():
     """管理员控制面板页面"""
-    # 检查管理员登录状态
-    if 'admin_token' not in session:
-        # 重定向到客户端登录页面
-        return redirect('/admin/login')
     
     disk_info = get_disk_usage()  # 获取磁盘信息
     sys_resources = get_system_resources()  # 获取系统资源信息
@@ -699,10 +842,25 @@ def admin():
     share_folder = system_config['upload_folder']
     disk = get_disk_usage()
     
+    # 获取用户列表 - 使用username类和password类的结构
+    users = []
+    users_file = os.path.join('user', 'user.json')
+    if os.path.exists(users_file):
+        try:
+            with open(users_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+                # 从users数组中提取用户信息
+                if 'users' in user_data:
+                    for user in user_data['users']:
+                        users.append({'username': user.get('username')})
+        except Exception as e:
+            print(f"读取用户列表失败: {str(e)}")
+    
     return render_template(
         'admin.html',
         disk_space=disk_space,
         files=files,
+        users=users,
         system_config=system_config,
         share_folder=share_folder,
         max_file_size=system_config['max_file_size'],
@@ -732,51 +890,168 @@ def admin_login_get():
     return render_template('admin_login.html')
 
 
+def load_public_key():
+    """
+    从key文件夹加载RSA公钥
+    """
+    try:
+        from cryptography.hazmat.primitives.serialization import load_pem_public_key
+        from cryptography.hazmat.backends import default_backend
+        
+        # 加载key文件夹中的key.pem文件作为公钥
+        public_key_path = os.path.join(app.root_path, 'key', 'key.pem')
+        
+        # 确保文件夹存在
+        key_dir = os.path.join(app.root_path, 'key')
+        if not os.path.exists(key_dir):
+            os.makedirs(key_dir)
+        
+        # 如果公钥文件不存在或有问题，使用简单的管理员密码登录方式
+        if not os.path.exists(public_key_path):
+            print(f"公钥文件不存在: {public_key_path}")
+            return None
+            
+        with open(public_key_path, 'rb') as key_file:
+            key_data = key_file.read()
+            try:
+                public_key = load_pem_public_key(
+                    key_data,
+                    backend=default_backend()
+                )
+                return public_key
+            except Exception as inner_e:
+                print(f"解析公钥文件失败: {inner_e}")
+                return None
+    except Exception as e:
+        print(f"加载公钥过程发生错误: {e}")
+        return None
+
+
+def verify_private_key(private_key_content, passphrase=None):
+    """
+    验证私钥文件的有效性
+    
+    Args:
+        private_key_content: 私钥文件内容（UTF-8编码）
+        passphrase: 私钥密码（可选）
+        
+    Returns:
+        如果私钥有效返回True，否则返回False
+    """
+    try:
+        from cryptography.hazmat.primitives.serialization import load_pem_private_key
+        from cryptography.hazmat.backends import default_backend
+        
+        # 加载私钥，支持带密码的私钥
+        password_bytes = passphrase.encode('utf-8') if passphrase else None
+        
+        # 确保私钥内容正确处理换行符
+        private_key_content = private_key_content.strip()
+        if not private_key_content.startswith('-----BEGIN'):
+            # 尝试添加缺失的开始标记
+            private_key_content = '-----BEGIN RSA PRIVATE KEY-----\n' + private_key_content
+        if not private_key_content.endswith('-----END RSA PRIVATE KEY-----'):
+            # 尝试添加缺失的结束标记
+            if not private_key_content.endswith('-----END'):
+                private_key_content = private_key_content + '\n-----END RSA PRIVATE KEY-----'
+        
+        # 规范化换行符为\n
+        private_key_content = private_key_content.replace('\r\n', '\n')
+        
+        private_key = load_pem_private_key(
+            private_key_content.encode('utf-8'),
+            password=password_bytes,
+            backend=default_backend()
+        )
+        
+        # 如果能成功加载私钥，就认为验证通过
+        return True
+    except ValueError as e:
+        print(f"私钥密码错误或私钥格式错误: {e}")
+        return False
+    except Exception as e:
+        print(f"私钥验证失败: {e}")
+        return False
+
+
 @app.route('/admin/login', methods=['POST'], endpoint='admin_login_post')
 def admin_login_post():
-    """管理员登录API"""
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-    
-    print(f"收到管理员登录请求: 用户名={username}")
-    
-    
-    # 验证用户名和密码(使用加密验证)
-    if username == system_config['admin_user'] and verify_password_encrypted(password, system_config['admin_password']):
-        session_token = os.urandom(24).hex()
-        session['admin_token'] = session_token
-        return jsonify({"status": "success", "token": session_token})
-    
-    return jsonify({"status": "error", "message": "无效凭据"}), 401
+    """
+    管理员登录API - 支持私钥文件上传和手动输入私钥内容两种方式
+    私钥验证流程：
+    1. 验证私钥的有效性（包括密码验证和格式验证）
+    2. 如果私钥能成功加载，即认为验证通过
+    """
+    try:
+        # 只处理表单请求
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            # 获取登录类型
+            login_type = request.form.get('login_type', 'file')
+            passphrase = request.form.get('passphrase')
+            private_key_content = None
+            
+            if login_type == 'manual':
+                # 手动输入私钥内容方式
+                private_key_content = request.form.get('private_key_content', '').strip()
+                
+                if not private_key_content:
+                    return jsonify({"status": "error", "message": "请输入私钥内容"})
+                
+                print("接收到手动输入的私钥内容，开始验证")
+            else:
+                # 默认的私钥文件上传方式
+                # 获取上传的私钥文件
+                if 'private_key' not in request.files:
+                    return jsonify({"status": "error", "message": "请上传私钥文件"})
+                
+                private_key_file = request.files['private_key']
+                
+                # 验证文件名，支持.key和.pem格式
+                if not private_key_file.filename:
+                    return jsonify({"status": "error", "message": "未选择私钥文件"})
+                
+                if not (private_key_file.filename.lower().endswith('.key') or 
+                        private_key_file.filename.lower().endswith('.pem')):
+                    return jsonify({"status": "error", "message": "请上传.key或.pem格式的私钥文件"})
+                
+                # 读取私钥文件内容 - 总是重新读取，确保实时更新
+                private_key_content = private_key_file.read().decode('utf-8')
+                print(f"接收到私钥文件: {private_key_file.filename}，开始验证")
+            
+            # 增强的私钥验证（支持带密码的私钥和正确处理换行符）
+            if not verify_private_key(private_key_content, passphrase):
+                print("私钥验证失败: 私钥格式错误或密码不正确")
+                return jsonify({"status": "error", "message": "私钥验证失败，请检查私钥格式和密码"})
+            
+            print("私钥验证成功")
+            
+            # 验证成功，生成安全的会话令牌
+            session_token = os.urandom(32).hex()
+            session['admin_token'] = session_token
+            session['admin_username'] = 'admin'
+            
+            # 设置会话过期时间（30分钟）
+            session.permanent = True
+            
+            # 登录成功，重定向到管理员页面
+            return jsonify({"status": "success", "redirect": "/admin"})
+        
+        return jsonify({"status": "error", "message": "不支持的请求格式"})
+    except ValueError as e:
+        print(f"值错误: {e}")
+        return jsonify({"status": "error", "message": f"输入错误: {str(e)}"})
+    except UnicodeDecodeError:
+        return jsonify({"status": "error", "message": "无法解析私钥文件，请确保文件格式正确"})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"管理员登录失败: {e}")
+        return jsonify({"status": "error", "message": "登录过程中发生错误，请重试"}), 500
 
-
-@app.route('/admin/change_password', methods=['POST'], endpoint='admin_change_password')
-def admin_change_password():
-    # 获取表单数据
-    current_password = request.form.get('current_password')
-    new_password = request.form.get('new_password')
-    confirm_password = request.form.get('confirm_password')
-    
-    # 验证当前密码(使用加密验证)
-    if not verify_password_encrypted(current_password, system_config['admin_password']):
-        flash('当前密码不正确', 'error')
-        return redirect(url_for('admin'))
-    
-    # 验证新密码匹配
-    if new_password != confirm_password:
-        flash('新密码不匹配', 'error')
-        return redirect(url_for('admin'))
-    
-    # 更新密码(保存哈希值)
-    system_config['admin_password'] = new_password
-    save_config()
-    
-    flash('密码已成功更新', 'success')
-    return redirect(url_for('admin'))
 
 
 @app.route('/admin/logout')
+@require_admin_token
 def admin_logout():
     """管理员登出"""
     session.pop('admin_token', None)
@@ -785,6 +1060,7 @@ def admin_logout():
 
 # 文件操作API
 @app.route('/api/files')
+@login_required
 def api_files():
     """获取文件列表API"""
     files = get_file_list()
@@ -811,6 +1087,7 @@ def api_files():
 
 
 @app.route('/api/upload', methods=['POST'])
+@login_required
 def upload():
     """文件上传API"""
     if 'file' not in request.files:
@@ -1035,23 +1312,166 @@ def api_check_config_file():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# 用户登录检查装饰器
+
+
+# 从user.json读取用户数据进行认证
+# 用户识别类定义
+class username:
+    """用户名类，用于用户识别"""
+    def __init__(self, value):
+        self.value = value
+    
+    def __eq__(self, other):
+        if isinstance(other, username):
+            return self.value == other.value
+        return self.value == other
+    
+    def __str__(self):
+        return self.value
+
+class password:
+    """密码类，用于用户认证"""
+    def __init__(self, value):
+        self.value = value
+    
+    def __eq__(self, other):
+        if isinstance(other, password):
+            return self.value == other.value
+        return self.value == other
+    
+    def __str__(self):
+        return self.value
+
+
+def validate_user(username_value, password_value):
+    """
+    从user.json文件中验证用户凭据
+    使用username类和password类进行用户识别和验证
+    
+    Args:
+        username_value: 用户名
+        password_value: 密码
+        
+    Returns:
+        bool: 用户凭据是否有效
+    """
+    try:
+        # 将输入值转换为对应的类
+        input_username = username(username_value)
+        input_password = password(password_value)
+        
+        # 读取user.json文件
+        user_file_path = os.path.join('user', 'user.json')
+        if not os.path.exists(user_file_path):
+            print("用户数据文件不存在")
+            return False
+            
+        with open(user_file_path, 'r', encoding='utf-8') as f:
+            user_data = json.load(f)
+            
+        # 获取用户列表
+        users = user_data.get('users', [])
+        
+        # 查找并验证用户 - 使用类进行比较
+        for user in users:
+            stored_username = username(user.get('username'))
+            stored_password = password(user.get('password'))
+            
+            if stored_username == input_username and stored_password == input_password:
+                return True
+                
+        return False
+        
+    except Exception as e:
+        print(f"用户验证错误: {e}")
+        return False
+
 # 页面路由
 @app.route('/')
 def index():
-    """文件下载中心首页"""
+    """用户登录页面"""
+    return render_template(
+        'index.html',
+        app_name=system_config['app_name']
+    )
+
+@app.route('/login', methods=['POST'])
+def login():
+    """用户登录处理"""
+    # 尝试从JSON获取数据（前端使用fetch发送JSON）
+    if request.is_json:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+    else:
+        # 兼容表单提交方式
+        username = request.form.get('username')
+        password = request.form.get('password')
+    
+    if not username or not password:
+        if request.is_json:
+            return jsonify({'status': 'error', 'message': '用户名和密码不能为空'})
+        else:
+            flash('用户名和密码不能为空')
+            return redirect(url_for('index'))
+    
+    if validate_user(username, password):
+        # 清空旧session
+        session.clear()
+        # 设置session为永久会话
+        session.permanent = True
+        # 设置登录标记和用户信息
+        session['user_logged_in'] = True
+        session['username'] = username
+        session['login_time'] = datetime.now().isoformat()
+        # 记录详细日志
+        app.logger.info(f"用户 {username} 登录成功，session已创建，cookie应已设置")
+        
+        # 直接重定向到用户页面，绕过前端可能的问题
+        if request.is_json:
+            # 对于JSON请求，返回重定向指令
+            return jsonify({'status': 'success', 'redirect': '/user'})
+        else:
+            return redirect(url_for('user_page'))
+    else:
+        app.logger.info(f"用户 {username} 登录失败：用户名或密码错误")
+        if request.is_json:
+            return jsonify({'status': 'error', 'message': '用户名或密码错误'})
+        else:
+            flash('用户名或密码错误')
+            return redirect(url_for('index'))
+
+@app.route('/user')
+@login_required
+def user_page():
+    """用户登录后的文件管理页面"""
+    # 记录详细的session信息
+    username = session.get('username', '未知用户')
+    has_login_time = 'login_time' in session
+    app.logger.info(f"访问用户页面，用户名: {username}, 登录时间存在: {has_login_time}")
+    
     disk = get_disk_usage()
     files = get_file_list()
     
     return render_template(
-        'index.html',
+        'user.html',
         files=files,
         app_name=system_config['app_name'],
         total_space=convert_size(disk['upload_total']),
         used_space=convert_size(disk['upload_used']),
         free_space=convert_size(disk['available']),
         max_file_size=system_config['max_file_size'],
-        usage_percent=disk['usage_percent']
+        usage_percent=disk['usage_percent'],
+        username=username
     )
+
+@app.route('/logout')
+def logout():
+    """用户登出"""
+    session.pop('user_logged_in', None)
+    session.pop('username', None)
+    return redirect(url_for('index'))
 
 @app.route('/bug_report')
 def bug_report():
@@ -1060,6 +1480,7 @@ def bug_report():
 
 
 @app.route('/download/<filename>')
+@login_required
 def download(filename):
     """文件下载路由"""
     if '../' in filename or not re.match(r'^[\w\-. ]+$', filename):
@@ -1080,6 +1501,7 @@ def download(filename):
 
 
 @app.route('/preview/<filename>')
+@login_required
 def preview(filename):
     """文件预览路由"""
     if '../' in filename or not re.match(r'^[\w\-. ]+$', filename):
@@ -1099,9 +1521,10 @@ def preview(filename):
 
 
 @app.route('/preview/<zip_filename>/<inner_filename>')
+@login_required
 def preview_inner_file(zip_filename, inner_filename):
     """预览zip文件内部的文件"""
-    from flask import make_response
+    from flask import make_response, Response
     import urllib.parse
     import os
     import tempfile
@@ -1225,70 +1648,102 @@ def preview_inner_file(zip_filename, inner_filename):
         # 处理范围请求以支持视频流
         def send_file_partial(path, start=None, length=None):
             """发送文件的一部分以支持范围请求"""
-            if start is None and length is None:
-                return send_file(path)
-            
             file_size = os.path.getsize(path)
             if start is None:
                 start = 0
             if length is None:
                 length = file_size - start
+                
+            # 确保范围有效
+            if start >= file_size:
+                start = 0
+                length = file_size
+                response = make_response()
+                response.headers['Content-Range'] = f'bytes */{file_size}'
+                response.status_code = 416  # Range Not Satisfiable
+                return response
+                
+            # 确保结束位置不超过文件大小
+            end = min(start + length - 1, file_size - 1)
+            length = end - start + 1
             
             with open(path, 'rb') as f:
                 f.seek(start)
                 data = f.read(length)
             
+            # 确定MIME类型
+            import mimetypes
+            mime_type, _ = mimetypes.guess_type(path)
+            if inner_filename.lower().endswith('.mp4'):
+                mime_type = 'video/mp4'
+            elif inner_filename.lower().endswith('.avi'):
+                mime_type = 'video/x-msvideo'
+            elif inner_filename.lower().endswith('.mov'):
+                mime_type = 'video/quicktime'
+            elif inner_filename.lower().endswith('.mkv'):
+                mime_type = 'video/x-matroska'
+            
             response = make_response(data)
-            response.headers['Content-Range'] = f'bytes {start}-{start + length - 1}/{file_size}'
+            response.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
             response.headers['Accept-Ranges'] = 'bytes'
             response.headers['Content-Length'] = length
+            response.headers['Content-Type'] = mime_type or 'application/octet-stream'
             response.status_code = 206  # Partial Content
             return response
         
-        # 检查是否为范围请求
-        range_header = request.headers.get('Range', None)
-        if range_header:
-            # 解析范围请求
-            range_match = re.match(r'bytes=(\d*)-(\d*)', range_header)
-            if range_match:
-                start_str, end_str = range_match.groups()
-                file_size = os.path.getsize(inner_file_path)
-                
-                # 计算起始和结束位置
-                start = int(start_str) if start_str else 0
-                end = int(end_str) if end_str else file_size - 1
-                length = end - start + 1
-                
-                # 发送部分文件
-                return send_file_partial(inner_file_path, start, length)
-        
-        # 如果不是范围请求，正常发送文件
-        response = make_response(send_file(inner_file_path))
-        
-        # 设置Accept-Ranges头以支持视频流
-        response.headers['Accept-Ranges'] = 'bytes'
-        
-        # 根据文件扩展名设置Content-Type
+        # 确定MIME类型
         import mimetypes
         mime_type, _ = mimetypes.guess_type(inner_file_path)
         
         # 对于视频文件，确保返回正确的MIME类型
+        if inner_filename.lower().endswith('.mp4'):
+            mime_type = 'video/mp4'
+        elif inner_filename.lower().endswith('.avi'):
+            mime_type = 'video/x-msvideo'
+        elif inner_filename.lower().endswith('.mov'):
+            mime_type = 'video/quicktime'
+        elif inner_filename.lower().endswith('.mkv'):
+            mime_type = 'video/x-matroska'
+        
+        # 检查是否为范围请求
+        range_header = request.headers.get('Range', None)
+        if range_header:
+            try:
+                # 解析范围请求
+                range_match = re.match(r'bytes=(\d*)-(\d*)', range_header)
+                if range_match:
+                    start_str, end_str = range_match.groups()
+                    file_size = os.path.getsize(inner_file_path)
+                    
+                    # 计算起始和结束位置
+                    start = int(start_str) if start_str else 0
+                    end = int(end_str) if end_str else file_size - 1
+                    length = end - start + 1
+                    
+                    # 发送部分文件
+                    return send_file_partial(inner_file_path, start, length)
+            except Exception as e:
+                print(f"Range request parsing error: {str(e)}")
+        
+        # 如果不是范围请求，正常发送文件
+        # 对于视频文件，使用更直接的方式发送
         if inner_filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
-            if not mime_type or not mime_type.startswith('video/'):
-                # 如果mimetypes无法正确识别，手动设置常见的视频MIME类型
-                if inner_filename.lower().endswith('.mp4'):
-                    mime_type = 'video/mp4'
-                elif inner_filename.lower().endswith('.avi'):
-                    mime_type = 'video/x-msvideo'
-                elif inner_filename.lower().endswith('.mov'):
-                    mime_type = 'video/quicktime'
-                elif inner_filename.lower().endswith('.mkv'):
-                    mime_type = 'video/x-matroska'
-        
-        if mime_type:
-            response.headers['Content-Type'] = mime_type
-        
-        return response
+            # 直接打开文件并流式传输
+            file_size = os.path.getsize(inner_file_path)
+            response = Response(open(inner_file_path, 'rb'), mimetype=mime_type or 'application/octet-stream')
+            response.headers['Content-Length'] = file_size
+            response.headers['Accept-Ranges'] = 'bytes'
+            response.headers['Content-Disposition'] = f'inline; filename="{inner_filename}"'
+            return response
+        else:
+            response = make_response(send_file(inner_file_path))
+            # 设置Accept-Ranges头以支持视频流
+            response.headers['Accept-Ranges'] = 'bytes'
+            
+            if mime_type:
+                response.headers['Content-Type'] = mime_type
+            
+            return response
     except Exception as e:
         # 添加调试日志
         print(f"Error in preview_inner_file: {str(e)}")
@@ -1304,6 +1759,7 @@ def preview_inner_file(zip_filename, inner_filename):
 
 #文件详情页面路由
 @app.route('/file_detail')
+@login_required
 def file_detail():
     """文件详情页"""
     filename = request.args.get('file')
@@ -1313,6 +1769,7 @@ def file_detail():
     return render_template('file_detail.html')
 
 @app.route('/api/file_info')
+@login_required
 def api_file_info():
     """获取文件信息API"""
     filename = request.args.get('filename')
@@ -1350,6 +1807,7 @@ def api_file_info():
 
 # Adofai谱面文件解析API
 @app.route('/api/adofai_level_info')
+@login_required
 def api_adofai_level_info():
     """获取Adofai谱面文件信息API"""
     filename = request.args.get('filename')

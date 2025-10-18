@@ -819,6 +819,7 @@
             <li><a href="#security" class="nav-link" data-section="security"><i class="bi bi-shield-lock"></i> <span>安全设置</span></a></li>
             <li><a href="#network" class="nav-link" data-section="network"><i class="bi bi-wifi"></i> <span>网络配置</span></a></li>
             <li><a href="#files" class="nav-link" data-section="files"><i class="bi bi-files"></i> <span>文件管理</span></a></li>
+            <li><a href="#users" class="nav-link" data-section="users"><i class="bi bi-people"></i> <span>用户管理</span></a></li>
         </ul>
     </nav>
     
@@ -942,34 +943,56 @@
             </div>
         </section>
         
+        <!-- 用户管理部分 -->
+        <section id="users" class="section-content">
+            <div class="dashboard-card">
+                <h2><i class="bi bi-people"></i> 用户管理</h2>
+                
+                <div style="margin-bottom: 20px;">
+                    <button id="add-user-btn" class="btn-save" style="margin-bottom: 15px;">
+                        <i class="bi bi-plus-circle"></i> 添加用户
+                    </button>
+                    
+                    <div class="file-list" style="max-height: 600px;">
+                        <table class="table table-striped" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border);">
+                                    <th style="padding: 12px; text-align: left;">用户名</th>
+                                    <th style="padding: 12px; text-align: left;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                {% for user in users %}
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <td style="padding: 12px;">{{ user.username }}</td>
+                                    <td style="padding: 12px;">
+                                        <button class="btn btn-sm btn-warning edit-user" data-username="{{ user.username }}">
+                                            <i class="bi bi-pen"></i> 编辑
+                                        </button>
+                                        <button class="btn btn-sm btn-danger delete-user" data-username="{{ user.username }}">
+                                            <i class="bi bi-trash"></i> 删除
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
         <!-- 安全设置部分 -->
         <section id="security" class="section-content">
             <div class="dashboard-card">
                 <h2><i class="bi bi-shield-lock"></i> 安全设置</h2>
-                <!-- 更改密码表单 -->
-            <form method="POST" action="{{ url_for('admin_change_password') }}" class="password-form">
-                <div class="form-group">
-                    <label for="current_password">当前密码</label>
-                    <input type="password" id="current_password" name="current_password" required class="form-control">
+                <!-- RSA私钥验证说明 -->
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>安全验证方式更新：</strong>系统现在使用RSA私钥验证进行管理员身份认证，不再支持密码登录和修改功能。
+                    请妥善保管您的私钥文件(.key)，它是管理员身份的唯一凭证
                 </div>
-            
-                <div class="form-group">
-                    <label for="new_password">新密码</label>
-                    <input type="password" id="new_password" name="new_password" required class="form-control">
-                </div>
-            
-                <div class="form-group">
-                    <label for="confirm_password">确认新密码</label>
-                    <input type="password" id="confirm_password" name="confirm_password" required class="form-control">
-                </div>
-            
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-key"></i> 更改密码
-                    </button>
-                </div>
-            </form>
-        </div>
+            </div>
     </section>
         
         <!-- 网络配置部分 -->
@@ -1038,12 +1061,9 @@
                             {% endif %}
                         </div>
                         <div class="file-actions">
-                            <form method="POST" action="{{ url_for('api_delete_file') }}" onsubmit="return confirm('确定要删除这个文件吗？')">
-                                <input type="hidden" name="filename" value="{{ file.name }}">
-                                <button type="submit" class="delete-btn" title="删除文件">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
+                            <button type="button" class="delete-btn admin-delete-file" data-filename="{{ file.name }}" title="删除文件">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
                     {% else %}
@@ -1057,7 +1077,303 @@
         </section>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // 用户管理功能
+        document.addEventListener('DOMContentLoaded', function() {
+            // 添加用户按钮点击事件
+            if (document.getElementById('add-user-btn')) {
+                document.getElementById('add-user-btn').addEventListener('click', function() {
+                    // 创建模态框
+                    createUserModal('add', null);
+                });
+            }
+            
+            // 管理员文件删除功能
+            document.querySelectorAll('.admin-delete-file').forEach(button => {
+                button.addEventListener('click', function() {
+                    const filename = this.getAttribute('data-filename');
+                    showConfirmModal('确认删除', `确定要删除文件 ${filename} 吗？`, function() {
+                        // 使用fetch API发送删除请求
+                        fetch('/api/delete_file', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ filename: filename })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                showMessageModal('操作成功', '文件已成功删除', 'success', function() {
+                                    // 刷新页面
+                                    location.reload();
+                                });
+                            } else {
+                                showMessageModal('操作失败', data.message || '删除文件失败，请重试', 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('删除文件失败:', error);
+                            showMessageModal('操作失败', '删除文件失败，请重试', 'error');
+                        });
+                    });
+                });
+            });
+            
+            // 编辑用户按钮点击事件委托
+            if (document.getElementById('users-table-body')) {
+                document.getElementById('users-table-body').addEventListener('click', function(e) {
+                    if (e.target.closest('.edit-user')) {
+                        const username = e.target.closest('.edit-user').dataset.username;
+                        createUserModal('edit', username);
+                    } else if (e.target.closest('.delete-user')) {
+                            const username = e.target.closest('.delete-user').dataset.username;
+                            showConfirmModal('确认删除', `确定要删除用户 ${username} 吗？`, function() {
+                                deleteUser(username);
+                            });
+                        }
+                });
+            }
+        });
+        
+        // 自定义消息弹窗函数
+        function showMessageModal(title, message, type = 'info', callback = null) {
+            // 移除已存在的消息模态框
+            const existingModal = document.getElementById('message-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // 根据类型设置样式
+            let iconClass = 'bi-info-circle';
+            let bgClass = 'bg-info';
+            
+            if (type === 'success') {
+                iconClass = 'bi-check-circle';
+                bgClass = 'bg-success';
+            } else if (type === 'error') {
+                iconClass = 'bi-exclamation-circle';
+                bgClass = 'bg-danger';
+            } else if (type === 'warning') {
+                iconClass = 'bi-exclamation-triangle';
+                bgClass = 'bg-warning';
+            }
+            
+            // 创建消息模态框HTML
+            const modalHtml = `
+            <div class="modal fade" id="message-modal" tabindex="-1" aria-labelledby="message-modal-label" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content" style="background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background-color: var(--card-bg);">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="message-modal-label" style="color: white; font-weight: bold;"><i class="bi ${iconClass} me-2"></i>${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: invert(1);"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p style="color: white; font-weight: bold;">${message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn ${bgClass} text-white font-bold" data-bs-dismiss="modal">确定</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+            
+            // 添加到body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('message-modal'));
+            modal.show();
+            
+            // 添加回调处理
+            const modalElement = document.getElementById('message-modal');
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                if (callback && typeof callback === 'function') {
+                    callback();
+                }
+                modalElement.remove(); // 清理DOM
+            });
+        }
+        
+        // 创建用户模态框
+        function createUserModal(type, username) {
+            // 移除已存在的模态框
+            const existingModal = document.getElementById('user-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // 创建模态框HTML
+            const modalHtml = `
+            <div class="modal fade" id="user-modal" tabindex="-1" aria-labelledby="user-modal-label" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content" style="background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background-color: var(--card-bg);">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="user-modal-label" style="color: white; font-weight: bold;">${type === 'add' ? '添加用户' : '编辑用户'}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: invert(1);"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="user-form">
+                                <div class="mb-3">
+                                    <label for="user-username" class="form-label" style="color: white; font-weight: bold;">用户名</label>
+                                    <input type="text" class="form-control" id="user-username" name="username" required ${type === 'edit' ? 'value="' + username + '" readonly' : ''}>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="user-password" class="form-label" style="color: white; font-weight: bold;">密码</label>
+                                    <input type="password" class="form-control" id="user-password" name="password" required placeholder="请输入密码">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="user-confirm-password" class="form-label" style="color: white; font-weight: bold;">确认密码</label>
+                                    <input type="password" class="form-control" id="user-confirm-password" name="confirm-password" required placeholder="请再次输入密码">
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary text-white font-bold" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary text-white font-bold" id="save-user-btn">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+            
+            // 添加到body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('user-modal'));
+            modal.show();
+            
+            // 保存按钮点击事件
+            document.getElementById('save-user-btn').addEventListener('click', function() {
+                const form = document.getElementById('user-form');
+                const userUsername = document.getElementById('user-username').value;
+                const userPassword = document.getElementById('user-password').value;
+                const confirmPassword = document.getElementById('user-confirm-password').value;
+                
+                // 验证密码
+                if (userPassword !== confirmPassword) {
+                    showMessageModal('验证失败', '两次输入的密码不一致！', 'error');
+                    return;
+                }
+                
+                // 保存用户
+                saveUser(type, userUsername, userPassword, modal);
+            });
+        }
+        
+        // 保存用户
+        function saveUser(type, username, password, modal) {
+            fetch('/admin/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: type,
+                    username: username,
+                    password: password
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    modal.hide();
+                    showMessageModal('操作成功', data.message, 'success', function() {
+                        // 刷新页面
+                        location.reload();
+                    });
+                } else {
+                    showMessageModal('操作失败', data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('保存用户失败:', error);
+                showMessageModal('操作失败', '保存用户失败，请重试', 'error');
+            });
+        }
+        
+        // 自定义确认弹窗
+        function showConfirmModal(title, message, confirmCallback = null) {
+            // 移除已存在的确认模态框
+            const existingModal = document.getElementById('confirm-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // 创建确认模态框HTML
+            const modalHtml = `
+            <div class="modal fade" id="confirm-modal" tabindex="-1" aria-labelledby="confirm-modal-label" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content" style="background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background-color: var(--card-bg);">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="confirm-modal-label" style="color: white; font-weight: bold;"><i class="bi bi-question-circle me-2"></i>${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: invert(1);"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p style="color: white; font-weight: bold;">${message}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary text-white font-bold" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-danger text-white font-bold" id="confirm-action-btn">确认</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+            
+            // 添加到body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('confirm-modal'));
+            modal.show();
+            
+            // 确认按钮点击事件
+            document.getElementById('confirm-action-btn').addEventListener('click', function() {
+                modal.hide();
+                if (confirmCallback && typeof confirmCallback === 'function') {
+                    confirmCallback();
+                }
+                setTimeout(() => {
+                    document.getElementById('confirm-modal').remove();
+                }, 500);
+            });
+        }
+        
+        // 删除用户
+        function deleteUser(username) {
+            showConfirmModal('确认删除', `确定要删除用户 ${username} 吗？`, function() {
+                fetch('/admin/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'delete',
+                        username: username
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showMessageModal('操作成功', data.message, 'success', function() {
+                            // 刷新页面
+                            location.reload();
+                        });
+                    } else {
+                        showMessageModal('操作失败', data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('删除用户失败:', error);
+                    showMessageModal('操作失败', '删除用户失败，请重试', 'error');
+                });
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // 默认显示仪表盘
             document.querySelector('.section-content.active').style.display = 'block';
@@ -1114,14 +1430,16 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.status === 'success') {
-                        location.reload();
+                        showMessageModal('操作成功', '配置已更新', 'success', function() {
+                            location.reload();
+                        });
                     } else {
-                        alert(`错误: ${result.message}`);
+                        showMessageModal('操作失败', `错误: ${result.message}`, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('配置更新失败:', error);
-                    alert('配置更新失败，请重试');
+                    showMessageModal('操作失败', '配置更新失败，请重试', 'error');
                 });
             });
             
@@ -1142,49 +1460,20 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.status === 'success') {
-                        location.reload();
+                        showMessageModal('操作成功', '配置已更新', 'success', function() {
+                            location.reload();
+                        });
                     } else {
-                        alert(`错误: ${result.message}`);
+                        showMessageModal('操作失败', `错误: ${result.message}`, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('配置更新失败:', error);
-                    alert('配置更新失败，请重试');
+                    showMessageModal('操作失败', '配置更新失败，请重试', 'error');
                 });
             });
             
-            // 文件删除后自动刷新
-            document.querySelectorAll('.file-actions form').forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    
-                    if (!confirm('确定要删除这个文件吗？')) return;
-                    
-                    const formData = new FormData(this);
-                    const data = Object.fromEntries(formData.entries());
-                    
-                    fetch(this.action, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(data)
-                    })
-                    .then(response => response.json())
-                    .then(result => {
-                        if (result.status === 'success') {
-                            // 删除成功后刷新文件列表
-                            location.reload();
-                        } else {
-                            alert(`删除失败: ${result.message}`);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('删除失败:', error);
-                        alert('删除失败，请重试');
-                    });
-                });
-            });
+            // 已移除旧的文件删除事件监听器，使用新的文件删除功能
             
             // 深色模式切换功能
             const themeToggle = document.getElementById('theme-toggle');
