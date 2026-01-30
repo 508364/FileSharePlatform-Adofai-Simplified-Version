@@ -66,7 +66,7 @@ pip install -r requirements.txt
 ```
 
 3. 配置系统参数（可选）
-   - 首次启动会自动创建默认配置文件 `fileshare_config.json`
+   - 首次启动会自动创建默认配置文件 `fileshare_config.ini`
    - 可手动编辑配置文件调整系统参数
 
 ### 配置项说明
@@ -100,25 +100,6 @@ python server.py
 2. 登录后可管理所有用户上传的文件
 3. 可查看系统资源使用情况
 
-## 文件结构
-
-```
-├── files_metadata.json    # 文件元数据存储
-├── fileshare_config.json  # 系统配置文件
-├── key/                   # 密钥存储目录
-│   └── key.pem
-├── requirements.txt       # 项目依赖
-├── server.py              # 主程序文件
-├── static/                # 静态资源目录
-│   ├── css/
-│   ├── favicon.ico
-│   └── js/
-├── templates/             # HTML模板目录
-├── uploads/               # 文件上传目录
-└── user/                  # 用户数据目录
-    └── user.json
-```
-
 ## 安全注意事项
 
 1. 建议在生产环境中修改默认的 `app.secret_key`
@@ -128,7 +109,7 @@ python server.py
 
 ## 版本历史
 
-- v1.2 - 当前版本
+- v2.0 - 当前版本
 
 ## 许可证
 
