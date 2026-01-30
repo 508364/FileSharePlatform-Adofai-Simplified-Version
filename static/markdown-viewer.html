@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Viewer</title>
+    <!-- 引入highlight.js的CSS样式 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
+    <!-- 引入marked.js -->
+    <script src="js/marked.min.js"></script>
+    <!-- 引入highlight.js -->
+    <script src="js/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: #2c3e50;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        
+        h2 {
+            font-size: 2rem;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+        
+        h3 {
+            font-size: 1.5rem;
+        }
+        
+        p {
+            margin-bottom: 16px;
+        }
+        
+        a {
+            color: #42b983;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        ul, ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+        
+        li {
+            margin-bottom: 8px;
+        }
+        
+        code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            background-color: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.85em;
+        }
+        
+        pre {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            padding: 16px;
+            overflow-x: auto;
+            margin-bottom: 16px;
+        }
+        
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            font-size: 0.85em;
+        }
+        
+        blockquote {
+            border-left: 4px solid #42b983;
+            padding: 0 16px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 16px;
+        }
+        
+        hr {
+            border: 0;
+            border-top: 1px solid #eaecef;
+            margin: 24px 0;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading" class="loading">正在加载Markdown内容...</div>
+        <div id="markdown-content" style="display: none;"></div>
+    </div>
+
+    <script>
+        // 从URL获取文件名
+        const params = new URLSearchParams(window.location.search);
+        const filename = params.get('file');
+        
+        if (!filename) {
+            document.getElementById('loading').innerHTML = '<span style="color: red;">错误：未指定文件</span>';
+        } else {
+            // 从服务器获取Markdown文件内容
+            fetch(`/api/file_content?filename=${encodeURIComponent(filename)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('文件获取失败');
+                    }
+                    return response.text();
+                })
+                .then(content => {
+                    // 使用marked.js将Markdown转换为HTML
+                    const html = marked.parse(content);
+                    
+                    // 将HTML插入到页面中
+                    document.getElementById('markdown-content').innerHTML = html;
+                    
+                    // 使用highlight.js高亮代码
+                    hljs.highlightAll();
+                    
+                    // 隐藏加载提示，显示内容
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('markdown-content').style.display = 'block';
+                })
+                .catch(error => {
+                    document.getElementById('loading').innerHTML = `<span style="color: red;">错误：${error.message}</span>`;
+                });
+        }
+    </script>
+</body>
+</html>

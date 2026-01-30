@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>管理员控制面板 - 网络文件共享平台</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='icons/font/bootstrap-icons.min.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <style>
         :root {
@@ -30,8 +30,11 @@
             --dark-card: #1e293b;
             --dark-text: #e2e8f0;
             --dark-border: #334155;
+            --dark-gray: #475569;
             --dark-header: #0f172a;
         }
+        
+
         
         * {
             margin: 0;
@@ -99,22 +102,86 @@
             border-bottom: 1px solid var(--dark-border);
         }
         
-        body.dark-mode .admin-nav {
-            background: var(--dark-header);
+        /* 开关样式 */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin-left: 15px;
+            vertical-align: middle;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-label {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--gray);
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .toggle-label:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-label {
+            background-color: var(--primary);
+        }
+        
+        input:checked + .toggle-label:before {
+            transform: translateX(26px);
+        }
+        
+        body.dark-mode .toggle-label {
+            background-color: var(--dark-gray);
+        }
+        
+        body.dark-mode input:checked + .toggle-label {
+            background-color: var(--primary-dark);
+        }
+        
+        body.dark-mode .folder-info.fixed-top {
+            background: #1e293b;
+            color: #cbd5e1;
             border-bottom: 1px solid var(--dark-border);
         }
         
-        body.dark-mode .admin-nav a {
+        body.dark-mode .admin-nav.sidebar {
+            background: var(--dark-header);
+            border-right: 1px solid var(--dark-border);
+        }
+        
+        body.dark-mode .admin-nav.sidebar a {
             color: var(--dark-text);
         }
         
-        body.dark-mode .admin-nav a:hover {
+        body.dark-mode .admin-nav.sidebar a:hover {
             color: var(--primary-light);
+            background-color: rgba(74, 118, 255, 0.1);
         }
         
-        body.dark-mode .admin-nav a.active {
+        body.dark-mode .admin-nav.sidebar a.active {
             color: var(--primary-light);
-            border-bottom: 3px solid var(--primary-light);
+            background-color: rgba(74, 118, 255, 0.2);
+            border-left: 3px solid var(--primary-light);
         }
         
         body.dark-mode .dashboard-card {
@@ -139,19 +206,51 @@
             color: var(--dark-text);
         }
         
-        body.dark-mode .form-group input, 
-        body.dark-mode .form-group select {
+        body.dark-mode .form-control {
             background-color: #1e293b;
             color: var(--dark-text);
             border: 1px solid var(--dark-border);
         }
         
-        body.dark-mode .file-list {
+        body.dark-mode .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(74, 118, 255, 0.2);
+        }
+        
+        body.dark-mode .form-select {
+            background-color: #1e293b;
+            color: var(--dark-text);
             border: 1px solid var(--dark-border);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23e2e8f0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+        }
+        
+        body.dark-mode .file-list {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode .file-list table {
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode .file-list th {
+            color: var(--dark-text);
+            border-bottom-color: var(--dark-border);
+        }
+        
+        body.dark-mode .file-list td {
+            color: var(--dark-text);
+            border-bottom-color: var(--dark-border);
         }
         
         body.dark-mode .file-item {
+            background: var(--dark-card);
             border-bottom: 1px solid var(--dark-border);
+        }
+        
+        body.dark-mode .file-item:hover {
+            background-color: rgba(74, 118, 255, 0.1);
         }
         
         body.dark-mode .file-name a {
@@ -160,6 +259,48 @@
         
         body.dark-mode .file-name a:hover {
             color: #8da2fb;
+        }
+        
+        /* 表格基本样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid var(--border);
+            font-weight: 500;
+        }
+        
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        /* 深色模式下的表格样式 */
+        body.dark-mode table {
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode th {
+            color: var(--dark-text);
+            border-bottom-color: var(--dark-border);
+        }
+        
+        body.dark-mode td {
+            color: var(--dark-text);
+            border-bottom-color: var(--dark-border);
+        }
+        
+        body.dark-mode .table-striped>tbody>tr:nth-of-type(odd) {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        body.dark-mode .table-striped>tbody>tr:hover {
+            background-color: rgba(74, 118, 255, 0.1);
         }
         
         body.dark-mode .flash-success {
@@ -194,6 +335,67 @@
         body.dark-mode .form-check-input:checked {
             background-color: var(--primary-dark);
             border-color: var(--primary-dark);
+        }
+        
+        /* 深色模式下的按钮样式 */
+        body.dark-mode .btn {
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        
+        body.dark-mode .btn-secondary {
+            background-color: var(--dark-gray);
+            border-color: var(--dark-gray);
+            color: var(--dark-text);
+        }
+        
+        body.dark-mode .btn-warning {
+            background-color: var(--warning);
+            border-color: var(--warning);
+            color: var(--dark);
+        }
+        
+        body.dark-mode .btn-danger {
+            background-color: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+        
+        /* 深色模式下的模态框样式 */
+        body.dark-mode .modal-content {
+            background-color: var(--dark-card);
+            color: var(--dark-text);
+            border: 1px solid var(--dark-border);
+        }
+        
+        body.dark-mode .modal-header {
+            border-bottom: 1px solid var(--dark-border);
+        }
+        
+        body.dark-mode .modal-footer {
+            border-top: 1px solid var(--dark-border);
+        }
+        
+        /* 深色模式下的警告框样式 */
+        body.dark-mode .alert {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--dark-text);
+            border: 1px solid var(--dark-border);
+        }
+        
+        body.dark-mode .alert-info {
+            background-color: rgba(54, 185, 204, 0.2);
+            border-color: rgba(54, 185, 204, 0.4);
+        }
+        
+        body.dark-mode .alert-warning {
+            background-color: rgba(246, 194, 62, 0.2);
+            border-color: rgba(246, 194, 62, 0.4);
         }
         
         /* 悬停效果 */
@@ -316,54 +518,91 @@
             color: var(--primary);
         }
         
-        /* 导航栏 */
-        .admin-nav {
-            background: white;
-            padding: 0 20px;
-            border-bottom: 1px solid var(--border);
-            overflow-x: auto;
-            white-space: nowrap;
-            position: sticky;
-            top: 60px;
-            z-index: 999;
+        /* 管理员布局容器 */
+        .admin-wrapper {
+            display: flex;
+            min-height: calc(100vh - 60px);
         }
         
-        .admin-nav ul {
+        /* 文件夹信息 - 固定在原地 */
+        .folder-info.fixed-top {
+            position: fixed;
+            top: 80px;
+            left: 0;
+            right: 0;
+            background: #f0f5ff;
+            padding: 12px 20px;
             display: flex;
+            align-items: center;
+            font-size: 14px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #444;
+            z-index: 998;
+        }
+        
+        .folder-info.fixed-top i {
+            margin-right: 10px;
+            color: var(--primary);
+        }
+        
+        /* 导航栏 - 左侧边栏 */
+        .admin-nav.sidebar {
+            width: 250px;
+            background: white;
+            padding: 90px 0 20px;
+            border-right: 1px solid var(--border);
+            position: fixed;
+            left: 0;
+            top: 80px;
+            bottom: 0;
+            overflow-y: auto;
+            z-index: 997;
+        }
+        
+        body.dark-mode .admin-nav.sidebar {
+            border-right-color: var(--dark-border);
+        }
+        
+        .admin-nav.sidebar ul {
             list-style: none;
-            gap: 5px;
             margin: 0;
             padding: 0;
         }
         
-        .admin-nav a {
+        .admin-nav.sidebar a {
             color: var(--dark);
             text-decoration: none;
             font-weight: 500;
-            padding: 12px 16px;
-            display: block;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
             transition: all 0.3s;
-            border-bottom: 3px solid transparent;
+            border-left: 3px solid transparent;
         }
         
-        .admin-nav a:hover {
+        .admin-nav.sidebar a:hover {
             color: var(--primary);
+            background-color: rgba(74, 118, 255, 0.05);
         }
         
-        .admin-nav a.active {
+        .admin-nav.sidebar a.active {
             color: var(--primary);
-            border-bottom: 3px solid var(--primary);
+            background-color: rgba(74, 118, 255, 0.1);
+            border-left: 3px solid var(--primary);
         }
         
-        .admin-nav a i {
-            margin-right: 8px;
+        .admin-nav.sidebar a i {
+            margin-right: 12px;
+            width: 20px;
+            text-align: center;
         }
         
         /* 主容器 */
         .admin-container {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 20px;
+            flex: 1;
+            margin-left: 250px;
+            padding: 110px 20px 20px;
+            max-width: calc(100% - 250px);
         }
         
         /* 卡片网格布局 */
@@ -453,6 +692,12 @@
         .stat-label {
             font-size: 13px;
             color: var(--gray);
+            text-align: center;
+        }
+        
+        .stat-label small {
+            font-size: 11px;
+            opacity: 0.8;
         }
         
         /* 配置表单 */
@@ -679,18 +924,43 @@
         }
         
         /* 响应式调整 */
+        @media (max-width: 992px) {
+            .admin-nav.sidebar {
+                width: 200px;
+            }
+            
+            .admin-container {
+                margin-left: 200px;
+                max-width: calc(100% - 200px);
+            }
+            
+            .admin-nav.sidebar a span {
+                font-size: 14px;
+            }
+        }
+        
         @media (max-width: 768px) {
             .config-form {
                 grid-template-columns: 1fr;
             }
             
-            .admin-nav ul {
-                gap: 0;
+            .admin-nav.sidebar {
+                width: 60px;
             }
             
-            .admin-nav a {
-                padding: 10px 12px;
-                font-size: 14px;
+            .admin-container {
+                margin-left: 60px;
+                max-width: calc(100% - 60px);
+                padding: 110px 15px 15px;
+            }
+            
+            .admin-nav.sidebar a span {
+                display: none;
+            }
+            
+            .admin-nav.sidebar a i {
+                margin-right: 0;
+                font-size: 18px;
             }
             
             .stats-grid {
@@ -712,20 +982,16 @@
                 width: 100%;
                 justify-content: space-between;
             }
+            
+            .folder-info.fixed-top {
+                font-size: 13px;
+                padding: 10px 15px;
+            }
         }
         
         @media (max-width: 480px) {
             .admin-header h1 {
                 font-size: 16px;
-            }
-            
-            .admin-nav a span {
-                display: none;
-            }
-            
-            .admin-nav a i {
-                margin-right: 0;
-                font-size: 18px;
             }
             
             .file-item {
@@ -737,6 +1003,10 @@
             .file-size {
                 text-align: left;
                 width: auto;
+            }
+            
+            .dashboard-card {
+                padding: 20px;
             }
         }
 
@@ -768,6 +1038,17 @@
             max-height: 48px;
         }
         
+        /* 增大开关控件大小 */
+        .form-switch .form-check-input {
+            width: 4rem;
+            height: 2rem;
+        }
+        
+        .form-switch .form-check-label {
+            padding-left: 0.5rem;
+            font-size: 1.1rem;
+        }
+        
         /* 进度条颜色 */
         .progress-bar {
             transition: width 0.6s ease;
@@ -784,6 +1065,43 @@
         .progress-bar.high {
             background-color: var(--danger);
         }
+        
+        /* 更新信息模态框样式 */
+        #update-info-content {
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        
+        #update-info-content h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+        
+        #update-info-content h3 {
+            font-size: 18px;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+        
+        #update-info-content ol {
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+        
+        #update-info-content li {
+            margin-bottom: 10px;
+        }
+        
+        /* 深色模式下的更新信息样式 */
+        body.dark-mode #update-info-content h1 {
+            color: var(--primary-light);
+        }
+        
+        body.dark-mode #update-info-content h3 {
+            color: var(--dark-text);
+        }
     </style>
 </head>
 <body>
@@ -794,48 +1112,49 @@
             <button id="theme-toggle" class="theme-toggle">
                 <i class="bi bi-moon btn-sm"></i> 深色模式
             </button>
-            <button class="logout-btn" onclick="location.href='/error_management'">
-                <i class="bi bi-exclamation-triangle btn-sm"></i> 错误页面管理
-            </button>
-            <button class="logout-btn" onclick="location.href='/captcha_settings'">
-                <i class="bi bi-shield-check btn-sm"></i> 验证码设置
-            </button>
             <!-- GitHub克隆功能已移除 -->
-            <button class="logout-btn" onclick="location.href='{{ url_for('admin_logout') }}'">
+            <button class="theme-toggle" id="update-info-btn">
+                <i class="bi bi-info-circle btn-sm"></i> 更新信息
+            </button>
+                <button class="logout-btn" onclick="location.href='{{ url_for('admin_logout') }}'">
                 <i class="bi bi-box-arrow-right btn-sm"></i> 退出
             </button>
         </div>
     </header>
     
-    <div class="folder-info">
-        <i class="bi bi-folder"></i>
-        当前共享目录: {{ share_folder }}
-    </div>
-    
-    <nav class="admin-nav">
-        <ul>
-            <li><a href="#dashboard" class="nav-link active" data-section="dashboard"><i class="bi bi-speedometer2"></i> <span>仪表盘</span></a></li>
-            <li><a href="#space" class="nav-link" data-section="space"><i class="bi bi-hdd"></i> <span>空间管理</span></a></li>
-            <li><a href="#security" class="nav-link" data-section="security"><i class="bi bi-shield-lock"></i> <span>安全设置</span></a></li>
-            <li><a href="#network" class="nav-link" data-section="network"><i class="bi bi-wifi"></i> <span>网络配置</span></a></li>
-            <li><a href="#files" class="nav-link" data-section="files"><i class="bi bi-files"></i> <span>文件管理</span></a></li>
-            <li><a href="#users" class="nav-link" data-section="users"><i class="bi bi-people"></i> <span>用户管理</span></a></li>
-        </ul>
-    </nav>
-    
-    <div class="admin-container">
-        <div class="flash-messages">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash-message flash-{{ category }}">
-                            <i class="bi bi-{% if category == 'success' %}check-circle{% else %}exclamation-circle{% endif %}"></i>
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+    <div class="admin-wrapper">
+        <div class="folder-info fixed-top">
+            <i class="bi bi-folder"></i>
+            当前共享目录: {{ share_folder }}
         </div>
+        
+        <nav class="admin-nav sidebar">
+            <ul>
+                <li><a href="#dashboard" class="nav-link active" data-section="dashboard"><i class="bi bi-speedometer2"></i> <span>仪表盘</span></a></li>
+                <li><a href="#space" class="nav-link" data-section="space"><i class="bi bi-hdd"></i> <span>空间管理</span></a></li>
+                <li><a href="#security" class="nav-link" data-section="security"><i class="bi bi-shield-lock"></i> <span>安全设置</span></a></li>
+                <li><a href="#token" class="nav-link" data-section="token"><i class="bi bi-key"></i> <span>Token设置</span></a></li>
+                <li><a href="#appearance" class="nav-link" data-section="appearance"><i class="bi bi-palette"></i> <span>外观设置</span></a></li>
+                <li><a href="#extensions" class="nav-link" data-section="extensions"><i class="bi bi-file-earmark-text"></i> <span>文件扩展名管理</span></a></li>
+                <li><a href="#network" class="nav-link" data-section="network"><i class="bi bi-wifi"></i> <span>网络配置</span></a></li>
+                <li><a href="#files" class="nav-link" data-section="files"><i class="bi bi-files"></i> <span>文件管理</span></a></li>
+                <li><a href="#users" class="nav-link" data-section="users"><i class="bi bi-people"></i> <span>用户管理</span></a></li>
+            </ul>
+        </nav>
+        
+        <div class="admin-container">
+            <div class="flash-messages">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">
+                                <i class="bi bi-{% if category == 'success' %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
         
         <!-- 仪表盘部分 -->
         <section id="dashboard" class="section-content active">
@@ -859,16 +1178,82 @@
                     <h2><i class="bi bi-cpu"></i> 系统资源</h2>
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="stat-value">{{ cpu_percent }}%</div>
+                            <canvas id="cpu-chart" width="120" height="120"></canvas>
                             <div class="stat-label">CPU使用率</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-value">{{ mem_percent }}%</div>
-                            <div class="stat-label">内存使用率</div>
-                            <div class="stat-value">{{ mem_used }} / {{ mem_total }}</div>
+                            <canvas id="mem-chart" width="120" height="120"></canvas>
+                            <div class="stat-label">内存使用率<br><small>{{ mem_used }} / {{ mem_total }}</small></div>
                         </div>
                     </div>
                 </div>
+                <script>
+                    // Canvas圆环渲染函数
+                    function drawRing(canvasId, percentage, label) {
+                        const canvas = document.getElementById(canvasId);
+                        const ctx = canvas.getContext('2d');
+                        const centerX = canvas.width / 2;
+                        const centerY = canvas.height / 2;
+                        const radius = 45;
+                        const lineWidth = 10;
+                        const angleOffset = (Math.PI * 7) / 9; // 140度偏移量
+                        const startAngle = (Math.PI * 3 / 2) - angleOffset; // 50度开始
+                        const endAngle = (Math.PI * 3 / 2) + angleOffset; // 310度结束
+                        const totalAngle = endAngle - startAngle;
+                        
+                        // 清除画布
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        // 检查是否为深色模式
+                        const isDarkMode = document.body.classList.contains('dark-mode');
+                        const bgColor = isDarkMode ? '#334155' : '#e0e0e0';
+                        const ringColor = isDarkMode ? '#4A76FF' : '#4A76FF';
+                        const textColor = isDarkMode ? '#e2e8f0' : '#333';
+                        
+                        // 绘制背景圆环
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+                        ctx.lineWidth = lineWidth;
+                        ctx.strokeStyle = bgColor;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                        
+                        // 绘制进度圆环
+                        const progressAngle = startAngle + (totalAngle * (percentage / 100));
+                        ctx.beginPath();
+                        ctx.arc(centerX, centerY, radius, startAngle, progressAngle, false);
+                        ctx.lineWidth = lineWidth;
+                        ctx.strokeStyle = ringColor;
+                        ctx.lineCap = 'round';
+                        ctx.stroke();
+                        
+                        // 绘制百分比文本
+                        ctx.font = 'bold 20px Arial';
+                        ctx.fillStyle = textColor;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(`${percentage}%`, centerX, centerY);
+                    }
+                    
+                    // 初始化渲染
+                    window.addEventListener('DOMContentLoaded', function() {
+                        // 渲染CPU使用率
+                        drawRing('cpu-chart', {{ cpu_percent }}, 'CPU');
+                        // 渲染内存使用率
+                        drawRing('mem-chart', {{ mem_percent }}, '内存');
+                        
+                        // 监听主题切换
+                        const themeToggle = document.getElementById('theme-toggle');
+                        if (themeToggle) {
+                            themeToggle.addEventListener('click', function() {
+                                setTimeout(function() {
+                                    drawRing('cpu-chart', {{ cpu_percent }}, 'CPU');
+                                    drawRing('mem-chart', {{ mem_percent }}, '内存');
+                                }, 100);
+                            });
+                        }
+                    });
+                </script>
                 
                 <div class="dashboard-card">
                     <h2><i class="bi bi-wifi"></i> 网络接口</h2>
@@ -956,17 +1341,19 @@
                     <div class="file-list" style="max-height: 600px;">
                         <table class="table table-striped" style="width: 100%; border-collapse: collapse;">
                             <thead>
-                                <tr style="border-bottom: 2px solid var(--border);">
+                                <tr>
                                     <th style="padding: 12px; text-align: left;">用户名</th>
+                                    <th style="padding: 12px; text-align: left;">QQ</th>
                                     <th style="padding: 12px; text-align: left;">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="users-table-body">
                                 {% for user in users %}
-                                <tr style="border-bottom: 1px solid var(--border);">
+                                <tr>
                                     <td style="padding: 12px;">{{ user.username }}</td>
+                                    <td style="padding: 12px;">{{ user.qq or '-' }}</td>
                                     <td style="padding: 12px;">
-                                        <button class="btn btn-sm btn-warning edit-user" data-username="{{ user.username }}">
+                                        <button class="btn btn-sm btn-warning edit-user" data-username="{{ user.username }}" data-qq="{{ user.qq }}">
                                             <i class="bi bi-pen"></i> 编辑
                                         </button>
                                         <button class="btn btn-sm btn-danger delete-user" data-username="{{ user.username }}">
@@ -992,8 +1379,258 @@
                     <strong>安全验证方式更新：</strong>系统现在使用RSA私钥验证进行管理员身份认证，不再支持密码登录和修改功能。
                     请妥善保管您的私钥文件(.key)，它是管理员身份的唯一凭证
                 </div>
+                
+                <!-- RSA私钥下载区域 -->
+                <div id="rsa-key-section" class="alert alert-warning">
+                    <i class="bi bi-key"></i>
+                    <strong>这是服务器生成的RSA密钥(.key)</strong>它是你管理员身份的唯一凭证请妥善保管：
+                    <br><br>
+                    <div class="d-flex gap-3">
+                        <a href="/admin/download-private-key" class="btn btn-primary">
+                            <i class="bi bi-download"></i> 下载密钥(.key)
+                        </a>
+                        <button class="btn btn-secondary" onclick="copyPrivateKey()">
+                            <i class="bi bi-clipboard"></i> 复制RSA私钥
+                        </button>
+                    </div>
+                    <br>
+                    <textarea id="private-key-content" class="form-control" rows="5" readonly style="font-family: monospace; font-size: 12px;"></textarea>
+                </div>
+                
+                <script>
+                    // 加载私钥内容
+                    fetch('/admin/get-private-key')
+                        .then(response => {
+                            // 尝试解析为JSON，检查是否为错误响应
+                            return response.text().then(text => {
+                                try {
+                                    const jsonData = JSON.parse(text);
+                                    if (jsonData.status === 'error' && jsonData.message === '私钥文件不存在') {
+                                        // 私钥文件不存在，隐藏RSA密钥显示区域
+                                        document.getElementById('rsa-key-section').style.display = 'none';
+                                        return '';
+                                    }
+                                } catch (e) {
+                                    // 不是JSON，直接返回文本
+                                    return text;
+                                }
+                                return text;
+                            });
+                        })
+                        .then(data => {
+                            // 如果data为空，说明已经处理过错误并隐藏了区域
+                            if (data) {
+                                document.getElementById('private-key-content').value = data;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载私钥失败:', error);
+                            document.getElementById('rsa-key-section').style.display = 'none';
+                        });
+                    
+                    // 复制私钥到剪贴板
+                    function copyPrivateKey() {
+                        const textarea = document.getElementById('private-key-content');
+                        textarea.select();
+                        document.execCommand('copy');
+                        
+                        // 显示复制成功提示
+                        const originalText = textarea.value;
+                        textarea.value = '私钥已复制到剪贴板！';
+                        textarea.style.color = '#28a745';
+                        
+                        setTimeout(() => {
+                            textarea.value = originalText;
+                            textarea.style.color = '';
+                        }, 2000);
+                    }
+                </script>
+                
+                <form method="POST" action="/api/update_security_settings" id="security-settings-form">
+                    <div class="config-form">
+                        <div class="form-group">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" id="user_login_enabled" name="user_login_enabled" {% if system_config.user_login_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="user_login_enabled">启用用户登录</label>
+                            </div>
+                            <div class="form-text">当关闭此选项时，访问者将直接以"游客"身份进入文件浏览页面</div>
+                        </div>
+                        
+                        <div class="form-group form-full">
+                            <button type="submit" class="btn-save">
+                                <i class="bi bi-save"></i> 保存设置
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
-    </section>
+        </section>
+        
+        <!-- Token设置部分 -->
+        <section id="token" class="section-content">
+            <div class="dashboard-card">
+                <h2><i class="bi bi-key"></i> Token设置</h2>
+                <div class="config-form">
+                    <div class="form-group">
+                        <label for="token-expiry">Token有效时间 (秒)</label>
+                        <input type="number" id="token-expiry" name="token-expiry" min="30" step="30" placeholder="输入Token有效时间（秒）">
+                        <div class="form-text">设置用户登录Token的有效期，默认为3600秒（1小时）</div>
+                    </div>
+                    <div class="form-group form-full">
+                        <button type="button" id="save-token-settings" class="btn-save">
+                            <i class="bi bi-save"></i> 保存Token设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Token管理部分 -->
+            <div class="dashboard-card" style="margin-top: 20px;">
+                <h2><i class="bi bi-person-check"></i> 当前登录用户Token管理</h2>
+                <div class="file-list" style="max-height: 400px;">
+                    <table class="table table-striped" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 12px; text-align: left;">Token</th>
+                                <th style="padding: 12px; text-align: left;">用户名</th>
+                                <th style="padding: 12px; text-align: left;">过期时间</th>
+                                <th style="padding: 12px; text-align: left;">状态</th>
+                                <th style="padding: 12px; text-align: left;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tokens-table-body">
+                            <!-- Token列表将通过JavaScript动态加载 -->
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 20px;">
+                                    <i class="bi bi-hourglass-split"></i> 正在加载Token列表...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 外观设置部分 -->
+        <section id="appearance" class="section-content">
+            <div class="dashboard-card">
+                <h2><i class="bi bi-palette"></i> 外观设置</h2>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>主题颜色管理</strong> 允许您自定义系统的主题颜色
+                </div>
+                
+                <form id="appearance-settings-form">
+                    <div class="config-form">
+                        <!-- 主题颜色设置 -->
+                        <div class="form-group">
+                            <label>主题主色</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" class="form-control form-control-color" id="primary-color" name="primary_color" value="#4A76FF" style="width: 60px; height: 40px;">
+                                <input type="text" class="form-control" id="primary-color-text" name="primary_color_text" value="#4A76FF" placeholder="#4A76FF">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>主题辅助色</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" class="form-control form-control-color" id="secondary-color" name="secondary_color" value="#6A5AF9" style="width: 60px; height: 40px;">
+                                <input type="text" class="form-control" id="secondary-color-text" name="secondary_color_text" value="#6A5AF9" placeholder="#6A5AF9">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>成功色</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" class="form-control form-control-color" id="success-color" name="success_color" value="#1cc88a" style="width: 60px; height: 40px;">
+                                <input type="text" class="form-control" id="success-color-text" name="success_color_text" value="#1cc88a" placeholder="#1cc88a">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>警告色</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" class="form-control form-control-color" id="warning-color" name="warning_color" value="#f6c23e" style="width: 60px; height: 40px;">
+                                <input type="text" class="form-control" id="warning-color-text" name="warning_color_text" value="#f6c23e" placeholder="#f6c23e">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>危险色</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" class="form-control form-control-color" id="danger-color" name="danger_color" value="#e74a3b" style="width: 60px; height: 40px;">
+                                <input type="text" class="form-control" id="danger-color-text" name="danger_color_text" value="#e74a3b" placeholder="#e74a3b">
+                            </div>
+                        </div>
+                        
+                        <!-- 保存按钮 -->
+                        <div class="form-group form-full">
+                            <button type="submit" class="btn-save">
+                                <i class="bi bi-save"></i> 保存主题设置
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
+        
+        <!-- 文件扩展名管理部分 -->
+        <section id="extensions" class="section-content">
+            <div class="dashboard-card">
+                <h2><i class="bi bi-file-earmark-text"></i> 文件扩展名管理</h2>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>文件扩展名管理</strong> 允许您设置允许或禁止上传的文件类型
+                </div>
+                
+                <form id="file-extensions-form">
+                    <div class="config-form">
+                        <!-- 启用开关 -->
+                        <div class="form-group">
+                            <div class="form-check form-switch">
+                                <input type="checkbox" class="form-check-input" id="file_extensions_enabled" name="enabled">
+                                <label class="form-check-label" for="file_extensions_enabled">启用文件扩展名限制</label>
+                            </div>
+                            <div class="form-text">当启用时，系统将根据以下规则限制文件上传</div>
+                        </div>
+                        
+                        <!-- 黑白名单模式选择 -->
+                        <div class="form-group">
+                            <label for="file_extensions_mode">限制模式</label>
+                            <select class="form-control" id="file_extensions_mode" name="mode">
+                                <option value="whitelist">白名单模式</option>
+                                <option value="blacklist">黑名单模式</option>
+                            </select>
+                            <div class="form-text">
+                                <strong>白名单模式</strong>：只允许上传列表中的文件类型<br>
+                                <strong>黑名单模式</strong>：禁止上传列表中的文件类型
+                            </div>
+                        </div>
+                        
+                        <!-- 扩展名列表 -->
+                        <div class="form-group">
+                            <label>扩展名列表</label>
+                            <!-- 添加扩展名输入 -->
+                            <div class="input-group mb-3">
+                                <input type="text" class="form-control" id="new-extension" placeholder="例如: .txt, .pdf">
+                                <button type="button" class="btn btn-primary" id="add-extension-btn">添加</button>
+                            </div>
+                            <div id="extensions-list" class="mb-3"></div>
+                            <div class="form-text">请输入带有前缀点的扩展名，例如: .txt, .pdf, .zip</div>
+                        </div>
+                        
+                        <!-- 保存按钮 -->
+                        <div class="form-group form-full">
+                            <button type="submit" class="btn-save">
+                                <i class="bi bi-save"></i> 保存设置
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
         
         <!-- 网络配置部分 -->
         <section id="network" class="section-content">
@@ -1077,8 +1714,78 @@
         </section>
     </div>
 
+    <!-- 更新信息模态框 -->
+    <div class="modal fade" id="update-info-modal" tabindex="-1" aria-labelledby="update-info-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="update-info-modal-label"><i class="bi bi-info-circle me-2"></i> 更新信息</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="update-info-content" class="p-3">
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                        </div>
+                        <p class="text-center mt-3">正在加载更新信息...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // 更新信息模态框功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const updateBtn = document.getElementById('update-info-btn');
+            const modal = new bootstrap.Modal(document.getElementById('update-info-modal'));
+            const contentDiv = document.getElementById('update-info-content');
+            
+            if (updateBtn) {
+                updateBtn.addEventListener('click', function() {
+                    // 显示加载状态
+                    contentDiv.innerHTML = `
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                        </div>
+                        <p class="text-center mt-3">正在加载更新信息...</p>
+                    `;
+                    
+                    // 显示模态框
+                    modal.show();
+                    
+                    // 获取GitHub仓库中的.md文件内容
+                    // 注意：由于跨域限制，我们需要通过后端API来获取
+                    fetch('/api/github-update-info')
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('网络响应错误');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.status === 'success') {
+                                contentDiv.innerHTML = data.content;
+                            } else {
+                                contentDiv.innerHTML = `<div class="alert alert-danger">加载失败: ${data.message}</div>`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('加载更新信息失败:', error);
+                            contentDiv.innerHTML = `<div class="alert alert-danger">加载失败: ${error.message}</div>`;
+                        });
+                });
+            }
+        });
+
         // 用户管理功能
         document.addEventListener('DOMContentLoaded', function() {
             // 添加用户按钮点击事件
@@ -1137,13 +1844,11 @@
             }
         });
         
-        // 自定义消息弹窗函数
+        // 自定义通知条函数
         function showMessageModal(title, message, type = 'info', callback = null) {
-            // 移除已存在的消息模态框
-            const existingModal = document.getElementById('message-modal');
-            if (existingModal) {
-                existingModal.remove();
-            }
+            // 移除已存在的通知条
+            const existingToasts = document.querySelectorAll('.notification-toast');
+            existingToasts.forEach(toast => toast.remove());
             
             // 根据类型设置样式
             let iconClass = 'bi-info-circle';
@@ -1160,41 +1865,40 @@
                 bgClass = 'bg-warning';
             }
             
-            // 创建消息模态框HTML
-            const modalHtml = `
-            <div class="modal fade" id="message-modal" tabindex="-1" aria-labelledby="message-modal-label" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content" style="background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background-color: var(--card-bg);">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="message-modal-label" style="color: white; font-weight: bold;"><i class="bi ${iconClass} me-2"></i>${title}</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: invert(1);"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p style="color: white; font-weight: bold;">${message}</p>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn ${bgClass} text-white font-bold" data-bs-dismiss="modal">确定</button>
-                        </div>
+            // 创建通知条HTML
+            const toastId = `notification-toast-${Date.now()}`;
+            const toastHtml = `
+            <div id="${toastId}" class="notification-toast position-fixed top-0 start-50 translate-middle-x z-50 ${bgClass} text-white shadow-lg p-3 m-2 rounded" style="max-width: 400px; transform: translateY(-100px); transition: transform 0.5s ease-in-out;">
+                <div class="d-flex align-items-center">
+                    <i class="bi ${iconClass} me-2 fs-5"></i>
+                    <div>
+                        <h6 class="mb-1">${title}</h6>
+                        <p class="mb-0 fs-sm">${message}</p>
                     </div>
+                    <button type="button" class="btn-close btn-close-white ms-auto" onclick="document.getElementById('${toastId}').remove();"></button>
                 </div>
             </div>
             `;
             
             // 添加到body
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.body.insertAdjacentHTML('beforeend', toastHtml);
             
-            // 显示模态框
-            const modal = new bootstrap.Modal(document.getElementById('message-modal'));
-            modal.show();
+            // 显示通知条
+            const toastElement = document.getElementById(toastId);
+            setTimeout(() => {
+                toastElement.style.transform = 'translate(-50%, 0)';
+            }, 100);
             
-            // 添加回调处理
-            const modalElement = document.getElementById('message-modal');
-            modalElement.addEventListener('hidden.bs.modal', function() {
-                if (callback && typeof callback === 'function') {
-                    callback();
-                }
-                modalElement.remove(); // 清理DOM
-            });
+            // 自动关闭通知条
+            setTimeout(() => {
+                toastElement.style.transform = 'translate(-50%, -100px)';
+                setTimeout(() => {
+                    toastElement.remove();
+                    if (callback && typeof callback === 'function') {
+                        callback();
+                    }
+                }, 500);
+            }, 3000);
         }
         
         // 创建用户模态框
@@ -1203,6 +1907,13 @@
             const existingModal = document.getElementById('user-modal');
             if (existingModal) {
                 existingModal.remove();
+            }
+            
+            // 获取用户QQ信息（如果是编辑）
+            let userQQ = '';
+            if (type === 'edit') {
+                const button = event.target.closest('.edit-user');
+                userQQ = button ? button.dataset.qq : '';
             }
             
             // 创建模态框HTML
@@ -1227,6 +1938,10 @@
                                 <div class="mb-3">
                                     <label for="user-confirm-password" class="form-label" style="color: white; font-weight: bold;">确认密码</label>
                                     <input type="password" class="form-control" id="user-confirm-password" name="confirm-password" required placeholder="请再次输入密码">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="user-qq" class="form-label" style="color: white; font-weight: bold;">QQ号</label>
+                                    <input type="text" class="form-control" id="user-qq" name="qq" placeholder="请输入QQ号（选填）" value="${userQQ}">
                                 </div>
                             </form>
                         </div>
@@ -1266,6 +1981,7 @@
         
         // 保存用户
         function saveUser(type, username, password, modal) {
+            const userQQ = document.getElementById('user-qq').value;
             fetch('/admin/users', {
                 method: 'POST',
                 headers: {
@@ -1274,7 +1990,8 @@
                 body: JSON.stringify({
                     action: type,
                     username: username,
-                    password: password
+                    password: password,
+                    qq: userQQ
                 })
             })
             .then(response => response.json())
@@ -1374,10 +2091,250 @@
             });
         }
 
+        // 文件扩展名配置管理
         document.addEventListener('DOMContentLoaded', function() {
-            // 默认显示仪表盘
-            document.querySelector('.section-content.active').style.display = 'block';
+            // 获取元素
+            const fileExtensionsForm = document.getElementById('file-extensions-form');
+            const enabledCheckbox = document.getElementById('file_extensions_enabled');
+            const modeSelect = document.getElementById('file_extensions_mode');
+            const extensionsList = document.getElementById('extensions-list');
+            const newExtensionInput = document.getElementById('new-extension');
+            const addExtensionBtn = document.getElementById('add-extension-btn');
             
+            // 扩展名列表数据
+            let extensions = [];
+            
+            // 从API获取当前配置
+            function loadConfig() {
+                fetch('/api/file_extensions')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const config = data.config;
+                            
+                            // 设置表单值
+                            enabledCheckbox.checked = config.enabled;
+                            modeSelect.value = config.mode;
+                            extensions = config.extensions || [];
+                            
+                            // 渲染扩展名列表
+                            renderExtensions();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('加载文件扩展名配置失败:', error);
+                        showMessageModal('加载失败', '加载文件扩展名配置失败，请重试', 'error');
+                    });
+            }
+            
+            // 渲染扩展名列表
+            function renderExtensions() {
+                extensionsList.innerHTML = '';
+                
+                if (extensions.length === 0) {
+                    extensionsList.innerHTML = '<div class="text-muted text-center py-3">暂无扩展名</div>';
+                    return;
+                }
+                
+                // 创建扩展名标签
+                extensions.forEach((ext, index) => {
+                    const extTag = document.createElement('span');
+                    extTag.className = 'badge bg-primary me-2 mb-2';
+                    extTag.style.cursor = 'pointer';
+                    extTag.innerHTML = `${ext} <i class="bi bi-x" onclick="removeExtension(${index})" style="margin-left: 5px;"></i>`;
+                    extensionsList.appendChild(extTag);
+                });
+            }
+            
+            // 添加扩展名
+            function addExtension() {
+                const ext = newExtensionInput.value.trim();
+                if (!ext) return;
+                
+                // 验证扩展名格式
+                if (!ext.startsWith('.')) {
+                    showMessageModal('格式错误', '请输入带有前缀点的扩展名，例如: .txt', 'error');
+                    return;
+                }
+                
+                // 检查是否已存在
+                if (extensions.includes(ext)) {
+                    showMessageModal('已存在', '该扩展名已在列表中', 'error');
+                    return;
+                }
+                
+                extensions.push(ext);
+                renderExtensions();
+                newExtensionInput.value = '';
+            }
+            
+            // 删除扩展名
+            window.removeExtension = function(index) {
+                extensions.splice(index, 1);
+                renderExtensions();
+            }
+            
+            // 保存配置
+            function saveConfig() {
+                const config = {
+                    enabled: enabledCheckbox.checked,
+                    mode: modeSelect.value,
+                    extensions: extensions
+                };
+                
+                fetch('/api/file_extensions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showMessageModal('操作成功', '文件扩展名配置已保存', 'success');
+                    } else {
+                        showMessageModal('操作失败', data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('保存文件扩展名配置失败:', error);
+                    showMessageModal('操作失败', '保存文件扩展名配置失败，请重试', 'error');
+                });
+            }
+            
+            // 事件监听
+            if (addExtensionBtn) {
+                addExtensionBtn.addEventListener('click', addExtension);
+            }
+            
+            if (newExtensionInput) {
+                newExtensionInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        addExtension();
+                    }
+                });
+            }
+            
+            if (fileExtensionsForm) {
+                fileExtensionsForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    saveConfig();
+                });
+            }
+            
+            // 初始加载配置
+            loadConfig();
+        });
+
+        // 外观设置管理
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取颜色选择器和文本输入元素
+            const primaryColor = document.getElementById('primary-color');
+            const primaryColorText = document.getElementById('primary-color-text');
+            const secondaryColor = document.getElementById('secondary-color');
+            const secondaryColorText = document.getElementById('secondary-color-text');
+            const successColor = document.getElementById('success-color');
+            const successColorText = document.getElementById('success-color-text');
+            const warningColor = document.getElementById('warning-color');
+            const warningColorText = document.getElementById('warning-color-text');
+            const dangerColor = document.getElementById('danger-color');
+            const dangerColorText = document.getElementById('danger-color-text');
+            const appearanceForm = document.getElementById('appearance-settings-form');
+
+            // 颜色选择器和文本输入同步
+            function syncColorInputs(colorPicker, textInput) {
+                colorPicker.addEventListener('input', function() {
+                    textInput.value = this.value;
+                });
+
+                textInput.addEventListener('input', function() {
+                    if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) {
+                        colorPicker.value = this.value;
+                    }
+                });
+            }
+
+            // 初始化所有颜色输入同步
+            syncColorInputs(primaryColor, primaryColorText);
+            syncColorInputs(secondaryColor, secondaryColorText);
+            syncColorInputs(successColor, successColorText);
+            syncColorInputs(warningColor, warningColorText);
+            syncColorInputs(dangerColor, dangerColorText);
+
+            // 加载主题设置
+            function loadThemeSettings() {
+                fetch('/api/theme_settings')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            const colors = data.colors;
+                            // 设置表单值
+                            primaryColor.value = colors.primary || '#4A76FF';
+                            primaryColorText.value = colors.primary || '#4A76FF';
+                            secondaryColor.value = colors.secondary || '#6A5AF9';
+                            secondaryColorText.value = colors.secondary || '#6A5AF9';
+                            successColor.value = colors.success || '#1cc88a';
+                            successColorText.value = colors.success || '#1cc88a';
+                            warningColor.value = colors.warning || '#f6c23e';
+                            warningColorText.value = colors.warning || '#f6c23e';
+                            dangerColor.value = colors.danger || '#e74a3b';
+                            dangerColorText.value = colors.danger || '#e74a3b';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('加载主题设置失败:', error);
+                    });
+            }
+
+            // 保存主题设置
+            function saveThemeSettings() {
+                const colors = {
+                    primary: primaryColor.value,
+                    secondary: secondaryColor.value,
+                    success: successColor.value,
+                    warning: warningColor.value,
+                    danger: dangerColor.value
+                };
+
+                fetch('/api/theme_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(colors)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showMessageModal('操作成功', '主题设置已保存', 'success');
+                        // 刷新页面以应用新主题
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        showMessageModal('操作失败', data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('保存主题设置失败:', error);
+                    showMessageModal('操作失败', '保存主题设置失败，请重试', 'error');
+                });
+            }
+
+            // 表单提交事件
+            if (appearanceForm) {
+                appearanceForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    saveThemeSettings();
+                });
+            }
+
+            // 初始加载主题设置
+            loadThemeSettings();
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
             // 标签页切换功能
             const navLinks = document.querySelectorAll('.nav-link');
             
@@ -1401,17 +2358,63 @@
                         sectionElement.classList.add('active');
                         sectionElement.style.display = 'block';
                     }
+                    
+                    // 更新URL哈希值，但不触发页面跳转
+                    const hash = this.getAttribute('href').substring(1);
+                    window.history.pushState({}, '', `#${hash}`);
                 });
             });
             
-            // 处理URL哈希值
+            // 首先隐藏所有内容区域
+            document.querySelectorAll('.section-content').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // 处理URL哈希值 - 优先处理
             const hash = window.location.hash.substring(1);
+            let targetSection = null;
+            let targetLink = null;
+            
             if (hash) {
-                const targetLink = document.querySelector(`.nav-link[data-section="${hash}"]`);
-                if (targetLink) {
-                    targetLink.click();
-                }
+                targetLink = document.querySelector(`.nav-link[data-section="${hash}"]`);
+                targetSection = document.getElementById(hash);
             }
+            
+            // 如果找不到哈希值对应的内容，使用默认的仪表盘
+            if (!targetSection) {
+                targetLink = document.querySelector('.nav-link[data-section="dashboard"]');
+                targetSection = document.getElementById('dashboard');
+            }
+            
+            // 设置活动状态
+            if (targetLink && targetSection) {
+                // 移除所有活动状态
+                navLinks.forEach(l => l.classList.remove('active'));
+                document.querySelectorAll('.section-content').forEach(section => {
+                    section.classList.remove('active');
+                });
+                
+                // 设置当前活动状态
+                targetLink.classList.add('active');
+                targetSection.classList.add('active');
+                targetSection.style.display = 'block';
+            }
+            
+            // 保存当前页面的哈希值到sessionStorage，以便从文件详情页返回时使用
+            if (window.location.hash) {
+                sessionStorage.setItem('admin_page_hash', window.location.hash);
+            }
+            
+            // 为所有跳转到文件详情页的链接添加点击事件监听器
+            document.querySelectorAll('a[href^="/file_detail"]').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    // 保存当前页面的哈希值到sessionStorage和localStorage
+                    const currentHash = window.location.hash;
+                    sessionStorage.setItem('admin_page_hash', currentHash);
+                    localStorage.setItem('admin_page_hash', currentHash);
+                    // 继续执行默认跳转行为
+                });
+            });
             
             // 修复415错误：设置正确的Content-Type
             document.getElementById('storage-config-form').addEventListener('submit', function(e) {
@@ -1440,6 +2443,39 @@
                 .catch(error => {
                     console.error('配置更新失败:', error);
                     showMessageModal('操作失败', '配置更新失败，请重试', 'error');
+                });
+            });
+            
+            // 安全设置表单提交
+            document.getElementById('security-settings-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData.entries());
+                
+                // 将复选框的值转换为布尔值
+                data.user_login_enabled = 'user_login_enabled' in data;
+                
+                fetch('/api/update_security_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        showMessageModal('操作成功', '安全设置已更新', 'success', function() {
+                            location.reload();
+                        });
+                    } else {
+                        showMessageModal('操作失败', `错误: ${result.message}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('配置更新失败:', error);
+                    showMessageModal('操作失败', '安全设置更新失败，请重试', 'error');
                 });
             });
             
@@ -1475,33 +2511,85 @@
             
             // 已移除旧的文件删除事件监听器，使用新的文件删除功能
             
+            // 动态主题颜色设置
+            // 获取主题颜色设置
+            fetch('/api/theme_settings')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const colors = data.colors;
+                        const root = document.documentElement;
+                        
+                        // 设置CSS变量
+                        root.style.setProperty('--primary', colors.primary);
+                        // 计算并设置深色和浅色变体
+                        function adjustColor(color, percent) {
+                            // 移除#号
+                            color = color.replace(/^#/, '');
+                            
+                            // 解析RGB值
+                            const r = parseInt(color.substr(0, 2), 16);
+                            const g = parseInt(color.substr(2, 2), 16);
+                            const b = parseInt(color.substr(4, 2), 16);
+                            
+                            // 调整亮度
+                            const adjust = Math.round(2.55 * percent);
+                            const newR = Math.max(0, Math.min(255, r + adjust));
+                            const newG = Math.max(0, Math.min(255, g + adjust));
+                            const newB = Math.max(0, Math.min(255, b + adjust));
+                            
+                            // 转换回十六进制
+                            return '#' + ((1 << 24) + (newR << 16) + (newG << 8) + newB).toString(16).slice(1);
+                        }
+                        
+                        root.style.setProperty('--primary-dark', adjustColor(colors.primary, -10));
+                        root.style.setProperty('--primary-light', adjustColor(colors.primary, 20));
+                        
+                        root.style.setProperty('--secondary', colors.secondary);
+                        root.style.setProperty('--success', colors.success);
+                        root.style.setProperty('--warning', colors.warning);
+                        root.style.setProperty('--danger', colors.danger);
+                    }
+                })
+                .catch(error => {
+                    console.error('加载主题颜色失败:', error);
+                });
+            
             // 深色模式切换功能
             const themeToggle = document.getElementById('theme-toggle');
-            const themeIcon = themeToggle.querySelector('i');
             
             // 检查本地存储或系统偏好
             const savedTheme = localStorage.getItem('theme') || 
                             (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
             
-            if (savedTheme === 'dark') {
-                document.body.classList.add('dark-mode');
-                themeIcon.className = 'bi bi-sun';
-                themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
+            // 设置初始主题
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    document.body.classList.add('dark-mode');
+                    themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
+                }
+                localStorage.setItem('theme', theme);
+                
+                // 重新渲染Canvas图表以适应新主题
+                if (typeof drawRing === 'function') {
+                    setTimeout(function() {
+                        drawRing('cpu-chart', {{ cpu_percent }}, 'CPU');
+                        drawRing('mem-chart', {{ mem_percent }}, '内存');
+                    }, 100);
+                }
             }
+            
+            // 初始化主题
+            setTheme(savedTheme);
             
             // 切换主题
             themeToggle.addEventListener('click', function() {
-                if (document.body.classList.contains('dark-mode')) {
-                    document.body.classList.remove('dark-mode');
-                    localStorage.setItem('theme', 'light');
-                    themeIcon.className = 'bi bi-moon';
-                    themeToggle.innerHTML = '<i class="bi bi-moon"></i> 深色模式';
-                } else {
-                    document.body.classList.add('dark-mode');
-                    localStorage.setItem('theme', 'dark');
-                    themeIcon.className = 'bi bi-sun';
-                    themeToggle.innerHTML = '<i class="bi bi-sun"></i> 浅色模式';
-                }
+                const currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                setTheme(newTheme);
             });
             
             // 更新进度条颜色
@@ -1517,6 +2605,153 @@
                 }
             });
         });
+    </script>
+    <script>
+        // Token管理功能
+        document.addEventListener('DOMContentLoaded', function() {
+            // 加载当前Token设置
+            fetch('/api/token_settings')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const tokenExpiryInput = document.getElementById('token-expiry');
+                        if (tokenExpiryInput) {
+                            tokenExpiryInput.value = data.token_expiry;
+                        }
+                    }
+                });
+            
+            // 保存Token设置按钮点击事件
+            const saveTokenSettingsBtn = document.getElementById('save-token-settings');
+            if (saveTokenSettingsBtn) {
+                saveTokenSettingsBtn.addEventListener('click', function() {
+                    const tokenExpiry = parseInt(document.getElementById('token-expiry').value);
+                    if (isNaN(tokenExpiry) || tokenExpiry <= 0) {
+                        alert('请输入有效的Token有效期');
+                        return;
+                    }
+                    
+                    fetch('/api/token_settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ token_expiry: tokenExpiry })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert('Token设置已成功保存');
+                            location.reload();
+                        } else {
+                            alert('保存Token设置失败: ' + (data.message || '未知错误'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存Token设置失败:', error);
+                        alert('保存Token设置失败，请重试');
+                    });
+                });
+            }
+            
+            // 初始加载Token列表
+            loadTokensList();
+        });
+        
+        // 加载Token列表
+        function loadTokensList() {
+            const tableBody = document.getElementById('tokens-table-body');
+            if (!tableBody) return;
+            
+            fetch('/api/manage_tokens')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const tokens = data.tokens;
+                        
+                        if (tokens.length === 0) {
+                            tableBody.innerHTML = `
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 20px; color: var(--gray);">
+                                        <i class="bi bi-file-earmark-x"></i> 暂无登录用户Token
+                                    </td>
+                                </tr>
+                            `;
+                            return;
+                        }
+                        
+                        // 生成Token列表HTML
+                        let html = '';
+                        tokens.forEach(token => {
+                            const statusClass = token.is_expired ? 'text-danger' : 'text-success';
+                            const statusText = token.is_expired ? '已过期' : '有效';
+                            
+                            html += `
+                                <tr>
+                                    <td style="padding: 12px; font-family: monospace;">${token.token}</td>
+                                    <td style="padding: 12px;">${token.username}</td>
+                                    <td style="padding: 12px;">${token.expiry_str}</td>
+                                    <td style="padding: 12px;">
+                                        <span class="${statusClass}">${statusText}</span>
+                                    </td>
+                                    <td style="padding: 12px;">
+                                        <button class="btn btn-sm btn-danger delete-token-btn" data-token="${token.token}">
+                                            <i class="bi bi-trash"></i> 清理
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        tableBody.innerHTML = html;
+                        
+                        // 添加删除Token按钮事件监听
+                        document.querySelectorAll('.delete-token-btn').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const token = this.getAttribute('data-token');
+                                // 使用HTML模态框确认
+                                showConfirmModal('清理Token', `确定要清理Token ${token} 吗？这将导致该用户立即被登出。`, function() {
+                                    deleteToken(token);
+                                });
+                            });
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('加载Token列表失败:', error);
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 20px; color: var(--danger);">
+                                <i class="bi bi-exclamation-circle"></i> 加载Token列表失败
+                            </td>
+                        </tr>
+                    `;
+                });
+        }
+        
+        // 删除Token
+        function deleteToken(token) {
+            fetch('/api/manage_tokens', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: 'delete', token: token })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Token已成功清理');
+                    loadTokensList();
+                } else {
+                    alert('清理Token失败: ' + (data.message || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('清理Token失败:', error);
+                alert('清理Token失败，请重试');
+            });
+        }
     </script>
 </body>
 </html>

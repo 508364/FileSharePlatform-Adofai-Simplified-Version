@@ -1,6 +1,139 @@
-# FileSharePlatform-Adofai-Simplified-Version
+# 文件共享平台 (Adofai用户注册版)
 
-## 这是专门为Adofai制作的简化版共享平台
+## 项目概述
+这是一个基于Flask的文件共享平台，专为Adofai玩家设计，提供文件上传、下载、管理功能，以及系统资源监控、文件预览等辅助功能。
 
-### 完整的项目在(https://github.com/508364/FileSharePlatform)
+## 核心功能
 
+### 1. 用户管理
+- 用户注册与登录系统
+- 会话管理与安全验证
+- 管理员账户系统
+
+### 2. 文件管理
+- 文件上传与下载
+- 文件预览功能（支持多种格式，包括视频、音频、图片）
+- ZIP文件内部文件预览
+- 文件元数据管理
+
+### 3. 特殊功能
+- Adofai谱面文件解析与预览
+- 系统资源监控
+- 版本检查与更新通知
+- 配置文件管理
+
+### 4. 安全特性
+- 密码哈希存储
+- 文件访问控制
+- 管理员权限验证
+- 防CSRF攻击
+
+## 技术栈
+
+### 后端
+- Python 3.x
+- Flask 2.3.2 - Web框架
+- Werkzeug 2.3.7 - WSGI工具库
+- Jinja2 3.1.2 - 模板引擎
+
+### 系统监控
+- psutil 5.9.5 - 系统资源监控
+- netifaces 0.11.0 - 网络接口信息获取
+
+### 网络与请求
+- requests >= 2.32.4 - HTTP请求处理
+- python-dotenv 1.0.0 - 环境变量管理
+
+### 前端
+- HTML5/CSS3
+- JavaScript
+- Bootstrap 5.3.0 - UI框架
+- Bootstrap Icons - 图标库
+
+## 安装与配置
+
+### 前提条件
+- Python 3.6+
+- pip包管理工具
+
+### 安装步骤
+
+1. 克隆或下载项目到本地
+
+2. 安装依赖包
+```bash
+pip install -r requirements.txt
+```
+
+3. 配置系统参数（可选）
+   - 首次启动会自动创建默认配置文件 `fileshare_config.json`
+   - 可手动编辑配置文件调整系统参数
+
+### 配置项说明
+
+- `upload_folder`: 文件上传目录路径
+- `max_file_size`: 单个文件最大大小(MB)
+- `max_total_size`: 总存储空间大小(MB)
+- `app_name`: 应用名称
+- `app_version`: 应用版本
+- `port`: 服务端口
+- `network_interface`: 网络接口配置
+
+## 使用方法
+
+### 启动服务
+```bash
+python server.py
+```
+
+服务启动后，可以通过以下地址访问：
+- 主页面: http://localhost:5000/
+- 管理页面: http://localhost:5000/admin
+
+### 用户操作
+1. 在登录页面输入用户名和密码进行登录
+2. 登录成功后可上传、下载和管理文件
+3. 点击文件可查看详细信息和预览内容
+
+### 管理员操作
+1. 访问管理页面进行管理员登录
+2. 登录后可管理所有用户上传的文件
+3. 可查看系统资源使用情况
+
+## 文件结构
+
+```
+├── files_metadata.json    # 文件元数据存储
+├── fileshare_config.json  # 系统配置文件
+├── key/                   # 密钥存储目录
+│   └── key.pem
+├── requirements.txt       # 项目依赖
+├── server.py              # 主程序文件
+├── static/                # 静态资源目录
+│   ├── css/
+│   ├── favicon.ico
+│   └── js/
+├── templates/             # HTML模板目录
+├── uploads/               # 文件上传目录
+└── user/                  # 用户数据目录
+    └── user.json
+```
+
+## 安全注意事项
+
+1. 建议在生产环境中修改默认的 `app.secret_key`
+2. 定期备份重要文件和数据库
+3. 注意设置适当的文件权限
+4. 建议在反向代理后部署以增强安全性
+
+## 版本历史
+
+- v1.2 - 当前版本
+
+## 许可证
+
+保留所有权利。
+
+## 联系方式
+
+如有问题或建议，请通过项目主页联系开发者。

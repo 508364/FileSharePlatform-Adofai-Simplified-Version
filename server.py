@@ -28,6 +28,11 @@ import zipfile
 from datetime import datetime, timedelta
 import re
 import hmac
+import random
+import string
+import uuid
+import pickle
+from collections import defaultdict
 
 
 # ==============================================
@@ -37,18 +42,182 @@ from werkzeug.utils import secure_filename
 from urllib.parse import urlparse
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
-from flask import Flask, render_template, send_from_directory, send_file, request, jsonify, abort, session, redirect, url_for, flash
+from flask import Flask, render_template, send_from_directory, send_file, request, jsonify, abort, session, redirect, url_for, flash, Response
 
 
 # ==============================================
 # 全局变量与配置
 # ==============================================
 
-# Flask应用实例
+# 运行初始化脚本
+import init_app
+import os
+import sys
+
+# 获取程序的基础路径，处理PyInstaller打包后的情况
+def get_base_path():
+    """获取程序的基础路径，处理PyInstaller打包后的情况"""
+    if getattr(sys, 'frozen', False):
+        # 如果是PyInstaller打包后的可执行文件
+        base_path = os.path.dirname(sys.executable)
+    else:
+        # 否则使用当前脚本所在目录
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return base_path
+
+# 初始化应用
+init_app.main()
+
 app = Flask(__name__)
 # 重置Flask配置，使用最基本的配置确保session正常工作
 # 使用固定secret_key确保会话一致性
-app.secret_key = 'f9d9c7e8b6a5d4c3b2a1'
+
+# Token配置
+TOKEN_FILE = os.path.join(get_base_path(), 'tokens.pkl')  # Token存储文件
+TOKEN_EXPIRY = 3600  # Token有效期为1小时（3600秒）
+TOKEN_LENGTH = 15    # Token长度为15位
+
+# Token存储，使用字典保存token信息：{token: {'username': username, 'expiry': expiry_time}}
+tokens = {}
+
+# 清理过期token
+def cleanup_expired_tokens():
+    """定期清理过期的token"""
+    global tokens
+    current_time = time.time()
+    expired_tokens = [token for token, info in tokens.items() if current_time >= info['expiry']]
+    for token in expired_tokens:
+        del tokens[token]
+    # 保存到文件
+    save_tokens()
+
+# 保存tokens到pkl文件
+def save_tokens():
+    """保存tokens到pkl文件"""
+    try:
+        with open(TOKEN_FILE, 'wb') as f:
+            pickle.dump(tokens, f)
+    except Exception as e:
+        print(f"保存tokens失败: {e}")
+
+# 加载tokens从pkl文件
+def load_tokens():
+    """从pkl文件加载tokens"""
+    global tokens
+    try:
+        if os.path.exists(TOKEN_FILE):
+            with open(TOKEN_FILE, 'rb') as f:
+                tokens = pickle.load(f)
+            # 清理过期token
+            cleanup_expired_tokens()
+    except Exception as e:
+        print(f"加载tokens失败: {e}")
+        tokens = {}
+
+# 加载tokens
+load_tokens()
+
+# 生成15位由数字和大写字母组成的随机token
+def generate_token():
+    """生成15位随机token，包含数字和大写字母"""
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(characters) for _ in range(TOKEN_LENGTH))
+
+# 检查token是否有效
+def is_token_valid(token):
+    """检查token是否有效且未过期"""
+    if token not in tokens:
+        return False
+    
+    token_info = tokens[token]
+    current_time = time.time()
+    return current_time < token_info['expiry']
+
+# 获取token对应的用户名
+def get_username_from_token(token):
+    """根据token获取用户名"""
+    if is_token_valid(token):
+        return tokens[token]['username']
+    return None
+
+# 更新token有效期
+def refresh_token(token):
+    """刷新token有效期"""
+    if token in tokens:
+        tokens[token]['expiry'] = time.time() + TOKEN_EXPIRY
+        save_tokens()  # 保存到文件
+        return True
+    return False
+
+# 清理过期token
+def cleanup_expired_tokens():
+    """定期清理过期的token"""
+    global tokens
+    current_time = time.time()
+    expired_tokens = [token for token, info in tokens.items() if current_time >= info['expiry']]
+    for token in expired_tokens:
+        del tokens[token]
+    # 保存到文件
+    save_tokens()
+
+# 读取文件扩展名配置
+def get_file_extension_config():
+    """读取文件扩展名配置"""
+    config_path = os.path.join('list', 'file_extensions.json')
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            return config
+    except Exception as e:
+        app.logger.error(f"读取文件扩展名配置失败: {e}")
+        # 返回默认配置
+        return {
+            "服务异常": "读取“文件扩展名”配置文件失败"
+        }
+
+# 保存文件扩展名配置
+def save_file_extension_config(config):
+    """保存文件扩展名配置"""
+    config_path = os.path.join('list', 'file_extensions.json')
+    try:
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        return True
+    except Exception as e:
+        app.logger.error(f"保存文件扩展名配置失败: {e}")
+        return False
+
+# 检查文件扩展名是否允许上传
+def is_file_extension_allowed(filename):
+    """检查文件扩展名是否允许上传"""
+    config = get_file_extension_config()
+    
+    if not config['enabled']:
+        # 如果黑白名单功能未启用，允许所有文件上传
+        return True
+    
+    # 获取文件扩展名
+    ext = os.path.splitext(filename.lower())[1]
+    
+    if config['mode'] == 'whitelist':
+        # 白名单模式：只允许配置中的扩展名
+        return ext in config['extensions']
+    else:
+        # 黑名单模式：不允许配置中的扩展名
+        return ext not in config['extensions']
+
+# 定期清理过期token的线程
+def start_token_cleanup():
+    """启动定期清理过期token的线程"""
+    def cleanup_thread():
+        while True:
+            cleanup_expired_tokens()
+            # 每30分钟清理一次
+            time.sleep(1800)
+    
+    thread = threading.Thread(target=cleanup_thread, daemon=True)
+    thread.start()
+
 # 只设置必要的会话过期时间
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
@@ -58,6 +227,52 @@ def login_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         try:
+            # 检查是否为管理员登录（优先检查，不受用户登录设置影响）
+            if 'admin_token' in session:
+                # 管理员已登录，直接允许访问
+                app.logger.info(f"管理员已登录，直接允许访问受保护页面")
+                return f(*args, **kwargs)
+            
+            # 检查是否有token验证
+            token = request.headers.get('Authorization') or request.headers.get('X-Token')
+            if token:
+                # 移除Bearer前缀（如果存在）
+                if token.startswith('Bearer '):
+                    token = token[7:]
+                # 检查token是否有效
+                if is_token_valid(token):
+                    # token有效，允许访问
+                    app.logger.info(f"Token验证成功，继续访问受保护页面")
+                    # 在session中设置用户名，以便后续使用
+                    username = get_username_from_token(token)
+                    session['user_logged_in'] = True
+                    session['username'] = username
+                    return f(*args, **kwargs)
+                else:
+                    app.logger.info(f"Token无效或已过期")
+                    # 对于API请求，返回401状态码
+                    if request.is_json or request.path.startswith('/api/'):
+                        return jsonify({"status": "error", "message": "Token无效或已过期"}), 401
+                    # 对于页面请求，重定向到登录页
+                    return redirect(url_for('index'))
+            
+            # 检查是否启用用户登录
+            if not system_config.get('user_login_enabled', False):
+                # 未启用用户登录，自动创建游客会话
+                if 'user_logged_in' not in session:
+                    # 清空旧session
+                    session.clear()
+                    # 设置session为永久会话
+                    session.permanent = True
+                    # 设置登录标记和游客信息
+                    session['user_logged_in'] = True
+                    session['username'] = '游客'
+                    session['login_time'] = datetime.now().isoformat()
+                    # 记录详细日志
+                    app.logger.info(f"用户登录功能已关闭，自动为游客创建会话")
+                # 直接继续访问受保护页面
+                return f(*args, **kwargs)
+            
             # 检查session对象是否存在
             if session is None:
                 app.logger.error("会话对象不存在，重定向到登录页")
@@ -77,6 +292,22 @@ def login_required(f):
                 app.logger.info(f"会话验证失败: 'user_logged_in'值为False，重定向到登录页")
                 return redirect(url_for('index'))
             
+            # 检查session对应的token是否有效（新增）
+            username = session.get('username')
+            if username and username != '游客':
+                # 查找该用户对应的token
+                valid_token = False
+                for token, info in tokens.items():
+                    if info['username'] == username and is_token_valid(token):
+                        valid_token = True
+                        break
+                
+                if not valid_token:
+                    app.logger.info(f"会话验证失败: 对应的Token无效或已被删除，重定向到登录页")
+                    # 清除session
+                    session.clear()
+                    return redirect(url_for('index'))
+            
             # 验证通过，继续处理
             app.logger.info(f"会话验证成功，继续访问受保护页面")
             return f(*args, **kwargs)
@@ -95,13 +326,74 @@ DEFAULT_CONFIG = {
     'max_file_size': 100,              # 单个文件最大大小(MB)
     'max_total_size': 1024,            # 总存储空间大小(MB)
     'app_name': '文件共享平台-adofai特别版',         # 应用名称
-    'app_version': 'v1.4',             # 应用版本
+    'app_version': 'v2.0',             # 应用版本
     'port': 5000,                      # 服务端口
     'network_interface': 'auto',       # 网络接口配置
+    'user_login_enabled': True,        # 是否启用用户登录
+    'secret_key': '',                  # 应用密钥，为空时会自动生成
 }
 
 # 系统当前配置 - 初始化为默认配置的副本
 system_config = DEFAULT_CONFIG.copy()
+
+# ============================================== 
+# 主题设置功能 
+# ===============================================
+THEME_FILE = os.path.join(get_base_path(), 'theme_settings.json')  # 主题设置文件
+
+# 默认主题颜色
+DEFAULT_THEME_COLORS = {
+    'primary': '#4A76FF',
+    'secondary': '#6A5AF9',
+    'success': '#1cc88a',
+    'warning': '#f6c23e',
+    'danger': '#e74a3b'
+}
+
+def get_theme_settings():
+    """
+    获取主题设置
+    
+    Returns:
+        dict: 主题颜色设置
+    """
+    try:
+        if os.path.exists(THEME_FILE):
+            with open(THEME_FILE, 'r', encoding='utf-8') as f:
+                colors = json.load(f)
+            # 确保所有必需的颜色都存在
+            for key, default_value in DEFAULT_THEME_COLORS.items():
+                if key not in colors:
+                    colors[key] = default_value
+            return colors
+        else:
+            # 如果文件不存在，返回默认颜色并保存
+            save_theme_settings(DEFAULT_THEME_COLORS)
+            return DEFAULT_THEME_COLORS
+    except Exception as e:
+        print(f"加载主题设置失败: {e}")
+        return DEFAULT_THEME_COLORS
+
+def save_theme_settings(colors):
+    """
+    保存主题设置
+    
+    Args:
+        colors (dict): 主题颜色设置
+    """
+    try:
+        # 确保只保存有效的颜色设置
+        valid_colors = {}
+        for key, default_value in DEFAULT_THEME_COLORS.items():
+            if key in colors and isinstance(colors[key], str):
+                valid_colors[key] = colors[key]
+            else:
+                valid_colors[key] = default_value
+        
+        with open(THEME_FILE, 'w', encoding='utf-8') as f:
+            json.dump(valid_colors, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"保存主题设置失败: {e}")
 
 # ============================================== 
 # 配置文件检查与更新功能 
@@ -124,26 +416,40 @@ def check_for_updates(current_version):
         api_url = f'https://api.github.com/repos/{owner}/{repo}/releases/latest'
         
         # 发送请求
-        session = requests.Session()
+        req_session = requests.Session()
         retry = Retry(total=3, backoff_factor=0.5)
         adapter = HTTPAdapter(max_retries=retry)
-        session.mount('https://', adapter)
+        req_session.mount('https://', adapter)
         
-        response = session.get(api_url, timeout=10)
+        response = req_session.get(api_url, timeout=10)
         response.raise_for_status()
         
         # 解析响应
         release_info = response.json()
-        latest_version = release_info.get('tag_name', '').replace('FileSharePlatform-v', '')
+        latest_tag = release_info.get('tag_name', '')
+        
+        # 提取版本号，移除可能的前缀
+        latest_version = latest_tag.replace('FileSharePlatform-v', '').replace('v', '')
+        current_version_clean = current_version.replace('v', '')
+        
+        # 版本比较 - 简单的数字比较
+        def parse_version(v):
+            try:
+                parts = list(map(int, v.split('.')))
+                while len(parts) < 3:  # 确保至少有3个部分
+                    parts.append(0)
+                return parts
+            except ValueError:
+                return [0, 0, 0]
         
         # 版本比较
-        if latest_version and latest_version > current_version:
+        if latest_version and parse_version(latest_version) > parse_version(current_version_clean):
             # 构建下载链接
-            download_url = f'https://github.com/{owner}/{repo}/releases/tag/{latest_version}'
+            download_url = f'https://github.com/{owner}/{repo}/releases/tag/{latest_tag}'
             
             return {
                 'current_version': current_version,
-                'latest_version': latest_version,
+                'latest_version': f'v{latest_version}',
                 'download_url': download_url,
                 'release_notes': release_info.get('body', '')
             }
@@ -153,8 +459,8 @@ def check_for_updates(current_version):
         return None
 
 # 配置与元数据文件路径
-CONFIG_FILE = 'fileshare_config.json'   # 系统配置文件
-METADATA_FILE = 'files_metadata.json'   # 文件元数据存储文件
+CONFIG_FILE = os.path.join(get_base_path(), 'fileshare_config.ini')   # 系统配置文件
+METADATA_FILE = os.path.join(get_base_path(), 'files_metadata.json')   # 文件元数据存储文件
 
 # 服务启动时间
 SERVICE_START_TIME = datetime.now()
@@ -190,7 +496,10 @@ def check_and_update_config_file():
         
         # 更新新配置字典，保留现有的非默认配置值
         for key, value in current_config.items():
-            if key in new_config and key != 'app_version':  # 排除版本号，确保版本号始终为最新
+            if key == 'app_version':
+                # 跳过版本号，确保版本号始终为最新（在new_config中已设置）
+                continue
+            elif key in new_config:
                 new_config[key] = value
             else:
                 print(f"发现未知配置项: {key}")
@@ -198,6 +507,9 @@ def check_and_update_config_file():
         # 检查配置是否有变化
         config_has_changes = False
         for key in new_config:
+            # 跳过app_version，因为它是特殊处理的
+            if key == 'app_version':
+                continue
             if key not in current_config or new_config[key] != current_config.get(key):
                 config_has_changes = True
                 break
@@ -211,6 +523,9 @@ def check_and_update_config_file():
             
             # 显示更新的配置项
             for key in new_config:
+                # 跳过app_version，因为它是特殊处理的
+                if key == 'app_version':
+                    continue
                 if key not in current_config:
                     print(f"  + 添加配置项: {key} = {new_config[key]}")
                 elif new_config[key] != current_config[key]:
@@ -232,11 +547,15 @@ def init_system():
     创建必要目录、加载保存配置并确保元数据文件有效
     """
     
-    # 创建必要目录 - 使用绝对路径确保打包后能正确访问
-    # 确保upload_folder是绝对路径
-    if not os.path.isabs(system_config['upload_folder']):
-        system_config['upload_folder'] = os.path.abspath(system_config['upload_folder'])
+    # 获取基础路径，处理PyInstaller打包后的情况
+    base_path = get_base_path()
     
+    # 设置上传目录为绝对路径
+    if not os.path.isabs(system_config['upload_folder']):
+        # 如果upload_folder是相对路径，使用基础路径拼接
+        system_config['upload_folder'] = os.path.join(base_path, system_config['upload_folder'])
+    
+    # 创建上传目录
     if not os.path.exists(system_config['upload_folder']):
         os.makedirs(system_config['upload_folder'])
     
@@ -257,6 +576,16 @@ def init_system():
         # 首次启动时创建默认配置文件
         save_config()
     
+    # 更新TOKEN_EXPIRY变量
+    global TOKEN_EXPIRY
+    if 'token_expiry' in system_config:
+        TOKEN_EXPIRY = system_config['token_expiry']
+    else:
+        # 如果配置中没有token_expiry，使用默认值并保存到配置
+        TOKEN_EXPIRY = 3600
+        system_config['token_expiry'] = TOKEN_EXPIRY
+        save_config()
+    
     # 确保元数据文件有效
     if not os.path.exists(METADATA_FILE):
         with open(METADATA_FILE, 'w', encoding='utf-8-sig') as f:
@@ -266,6 +595,31 @@ def init_system():
     elif os.path.getsize(METADATA_FILE) == 0:
         with open(METADATA_FILE, 'w', encoding='utf-8-sig') as f:
             json.dump({}, f)
+    
+    # 检查并生成RSA密钥
+    key_dir = os.path.join(base_path, 'key')
+    public_key_path = os.path.join(key_dir, 'key.pem')
+    private_key_path = os.path.join(key_dir, 'private_key.pem')
+    private_key_download_path = os.path.join(key_dir, 'private_key.key')
+    
+    # 如果密钥目录不存在，创建目录
+    if not os.path.exists(key_dir):
+        os.makedirs(key_dir)
+    
+    # 如果公钥不存在，生成新的RSA密钥对
+    if not os.path.exists(public_key_path):
+        print("首次启动，正在生成RSA密钥对...")
+        
+        # 直接导入rsa_key_generator模块生成密钥
+        try:
+            import rsa_key_generator
+            # 生成RSA密钥对
+            public_key, private_key = rsa_key_generator.generate_rsa_keys(bits=4096)
+            # 保存密钥对
+            rsa_key_generator.save_rsa_keys(public_key, private_key, key_dir)
+            print("RSA密钥对生成完成！")
+        except Exception as e:
+            print(f"错误：生成RSA密钥对失败！{str(e)}")
     
     print("系统初始化完成,元数据文件已就绪")
 
@@ -297,7 +651,48 @@ def decrypt_password(encrypted_password):
 
 def verify_password_encrypted(password, encrypted_password):
     """验证加密密码是否匹配"""
-    return encrypt_password(password) == encrypted_password
+    return password == decrypt_password(encrypted_password)
+
+
+def update_user_files(username, filename, action='add'):
+    """
+    更新用户的文件列表
+    
+    Args:
+        username (str): 用户名
+        filename (str): 文件名
+        action (str): 操作类型,可选值: 'add' | 'remove'
+    
+    Returns:
+        bool: 更新是否成功
+    """
+    users_file = os.path.join('user', 'user.json')
+    try:
+        with open(users_file, 'r', encoding='utf-8') as f:
+            user_data = json.load(f)
+        
+        for user in user_data['users']:
+            if user['username'] == username:
+                if action == 'add':
+                    # 添加文件到用户的File列表
+                    if filename not in user.get('File', []):
+                        if 'File' not in user:
+                            user['File'] = []
+                        user['File'].append(filename)
+                elif action == 'remove':
+                    # 从用户的File列表中移除文件
+                    if 'File' in user and filename in user['File']:
+                        user['File'].remove(filename)
+                break
+        
+        with open(users_file, 'w', encoding='utf-8') as f:
+            json.dump(user_data, f, ensure_ascii=False, indent=4)
+        
+        return True
+    except Exception as e:
+        print(f"更新用户文件列表失败: {e}")
+        return False
+
 
 def save_config():
     """保存当前配置到配置文件"""
@@ -363,13 +758,14 @@ def load_metadata():
         return {}
 
 
-def update_metadata(filename, action='upload'):
+def update_metadata(filename, action='upload', user=None):
     """
     更新文件元数据
     
     Args:
         filename (str): 文件名
         action (str): 操作类型,可选值: 'upload' | 'download' | 'delete'
+        user (str): 上传用户的用户名
     
     Returns:
         dict or None: 更新后的文件元数据,如文件不存在则返回None
@@ -393,7 +789,8 @@ def update_metadata(filename, action='upload'):
             'size': file_size,
             'created': file_ctime,
             'modified': file_mtime,
-            'download_count': 0
+            'download_count': 0,
+            'user': user or 'unknown'
         }
     
     # 更新元数据
@@ -448,7 +845,7 @@ def get_file_list():
     
     for filename in os.listdir(upload_dir):  
         # 安全检查，防止目录遍历攻击
-        if '../' in filename or not re.match(r'^[\w\-. ]+$', filename):
+        if '../' in filename or not re.match(r'^[\w\-. \u4e00-\u9fa5]+$', filename):
             continue
         
         file_path = os.path.join(upload_dir, filename)
@@ -570,7 +967,7 @@ def get_system_resources():
         # 返回数据
         return { 
             'cpu_percent': '获取系统资源失败',
-            'mem_percent': '获取系统资源失',
+            'mem_percent': '获取系统资源失败',
             'mem_total': '获取系统资源失败',
             'mem_used': '获取系统资源失败',
             'interfaces': [
@@ -589,6 +986,7 @@ def require_admin_token(func):
     检查请求是否包含有效的管理员令牌,用于保护需要管理员权限的接口
     对于Web界面访问，重定向到登录页面
     对于API访问，返回403错误
+    当key文件夹为空时，允许直接访问admin页面
     
     Args:
         func:.需要保护的视图函数
@@ -607,6 +1005,24 @@ def require_admin_token(func):
         token = request.headers.get('X-Admin-Token')
         if token and token == session.get('admin_token'):
             return func(*args, **kwargs)
+        
+        # 检查私钥文件是否存在
+        try:
+            base_path = get_base_path()
+            private_key_path = os.path.join(base_path, 'key', 'private_key.key')
+            private_key_pem_path = os.path.join(base_path, 'key', 'private_key.pem')
+            
+            # 如果私钥文件存在，允许直接访问
+            if os.path.exists(private_key_path) or os.path.exists(private_key_pem_path):
+                # 私钥文件存在，允许直接访问
+                print("私钥文件存在，允许直接访问admin页面")
+                # 生成一个临时admin_token，允许当前会话访问
+                session['admin_token'] = os.urandom(32).hex()
+                session['admin_username'] = 'admin'
+                session.permanent = True
+                return func(*args, **kwargs)
+        except Exception as e:
+            print(f"检查私钥文件时出错: {e}")
         
         # 判断是否为API请求（通过Accept头或URL路径判断）
         if request.headers.get('Accept') == 'application/json' or request.path.startswith('/api/'):
@@ -641,6 +1057,10 @@ def parse_adofai_file(file_path):
         # 提取settings部分
         settings = data.get('settings', {})
         
+        # 提取pathData并计算步数
+        path_data = data.get('pathData', '')
+        steps_count = len(path_data)
+        
         # 提取关键信息
         song_info = {
             'song': settings.get('song', '未知'),
@@ -654,7 +1074,8 @@ def parse_adofai_file(file_path):
             'bg': settings.get('bg', '未知'),
             'song_filename': settings.get('songFilename', ''),
             'level_tags': settings.get('levelTags', ''),
-            'actions_count': len(data.get('actions', []))
+            'actions_count': len(data.get('actions', [])),
+            'steps_count': steps_count
         }
         
         return song_info
@@ -721,10 +1142,13 @@ def admin_users():
             if os.path.exists(users_file):
                 with open(users_file, 'r', encoding='utf-8') as f:
                     user_data = json.load(f)
-                    # 从users数组中提取用户名
+                    # 从users数组中提取用户信息，包括用户名和QQ
                     if 'users' in user_data:
                         for user in user_data['users']:
-                            users.append(user.get('username'))
+                            users.append({
+                                'username': user.get('username'),
+                                'qq': user.get('qq', '')
+                            })
             return jsonify({'status': 'success', 'users': users})
         
         # POST请求 - 处理用户管理操作
@@ -767,7 +1191,8 @@ def admin_users():
             # 使用username类和password类的结构添加新用户
             new_user = {
                 'username': username_value,
-                'password': password_value
+                'password': password_value,
+                'qq': ''
             }
             users.append(new_user)
             message = '用户添加成功'
@@ -783,6 +1208,9 @@ def admin_users():
                     
                     # 更新用户密码
                     user['password'] = password_value
+                    # 更新用户QQ（如果提供）
+                    if 'qq' in data:
+                        user['qq'] = data.get('qq', '')
                     user_found = True
                     message = '用户更新成功'
                     break
@@ -842,6 +1270,9 @@ def admin():
     share_folder = system_config['upload_folder']
     disk = get_disk_usage()
     
+    # 计算总下载次数
+    total_downloads = sum(f.get('download_count', 0) for f in files)
+    
     # 获取用户列表 - 使用username类和password类的结构
     users = []
     users_file = os.path.join('user', 'user.json')
@@ -852,7 +1283,10 @@ def admin():
                 # 从users数组中提取用户信息
                 if 'users' in user_data:
                     for user in user_data['users']:
-                        users.append({'username': user.get('username')})
+                        users.append({
+                            'username': user.get('username'),
+                            'qq': user.get('qq', '')
+                        })
         except Exception as e:
             print(f"读取用户列表失败: {str(e)}")
     
@@ -880,13 +1314,35 @@ def admin():
         # 网络配置
         port=system_config['port'],
         network_interface=system_config['network_interface'],
+        # 总下载次数
+        total_downloads=total_downloads,
         
     )
 
 
 @app.route('/admin/login', methods=['GET'], endpoint='admin_login_get')
 def admin_login_get():
-    """管理员登录页面"""
+    """
+    管理员登录页面
+    如果私钥文件存在，直接重定向到admin页面
+    """
+    try:
+        base_path = get_base_path()
+        private_key_path = os.path.join(base_path, 'key', 'private_key.key')
+        private_key_pem_path = os.path.join(base_path, 'key', 'private_key.pem')
+        
+        # 如果私钥文件存在，直接重定向到admin安全设置页面
+        if os.path.exists(private_key_path) or os.path.exists(private_key_pem_path):
+            # 生成一个临时admin_token，允许当前会话访问
+            session['admin_token'] = os.urandom(32).hex()
+            session['admin_username'] = 'admin'
+            session.permanent = True
+            print("私钥文件存在，直接重定向到admin安全设置页面")
+            return redirect('/admin#security')
+    except Exception as e:
+        print(f"检查私钥文件时出错: {e}")
+    
+    # 私钥文件不存在，显示登录页面
     return render_template('admin_login.html')
 
 
@@ -929,7 +1385,11 @@ def load_public_key():
 
 def verify_private_key(private_key_content, passphrase=None):
     """
-    验证私钥文件的有效性
+    验证私钥文件的有效性，使用RSA密钥对验证机制：
+    1. 随机生成一个数字
+    2. 使用服务端公钥加密该数字
+    3. 使用上传的私钥解密密文
+    4. 比较解密结果和原数字是否一致
     
     Args:
         private_key_content: 私钥文件内容（UTF-8编码）
@@ -939,8 +1399,13 @@ def verify_private_key(private_key_content, passphrase=None):
         如果私钥有效返回True，否则返回False
     """
     try:
-        from cryptography.hazmat.primitives.serialization import load_pem_private_key
+        from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
         from cryptography.hazmat.backends import default_backend
+        from cryptography.hazmat.primitives.asymmetric import padding
+        from cryptography.hazmat.primitives import hashes
+        import os
+        import sys
+        import json
         
         # 加载私钥，支持带密码的私钥
         password_bytes = passphrase.encode('utf-8') if passphrase else None
@@ -958,19 +1423,97 @@ def verify_private_key(private_key_content, passphrase=None):
         # 规范化换行符为\n
         private_key_content = private_key_content.replace('\r\n', '\n')
         
+        # 加载上传的私钥
         private_key = load_pem_private_key(
             private_key_content.encode('utf-8'),
             password=password_bytes,
             backend=default_backend()
         )
         
-        # 如果能成功加载私钥，就认为验证通过
-        return True
+        # 加载服务端公钥
+        base_path = get_base_path()
+        public_key_path = os.path.join(base_path, 'key', 'key.pem')
+        
+        if not os.path.exists(public_key_path):
+            print(f"公钥文件不存在: {public_key_path}")
+            return False
+            
+        with open(public_key_path, 'rb') as key_file:
+            key_data = key_file.read()
+            public_key = load_pem_public_key(
+                key_data,
+                backend=default_backend()
+            )
+        
+        # 获取公钥密钥长度（单位：位）
+        from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+        if isinstance(public_key, RSAPublicKey):
+            key_size = public_key.key_size
+            print(f"检测到RSA公钥，密钥长度: {key_size} 位")
+            
+            # 计算最大可用加密长度：密钥长度/8 - 2*SHA256长度 - 2 = 密钥长度/8 - 66字节
+            max_data_length = key_size // 8 - 66
+            print(f"RSA最大可用加密长度: {max_data_length} 字节")
+        else:
+            print("检测到非RSA公钥，使用默认密钥长度")
+            key_size = 4096  # 默认4096位
+            max_data_length = 512 - 66  # 4096位RSA的最大可用加密长度 (512 - 66 = 446字节)
+        
+        # 1. 生成安全长度的随机数
+        import random
+        # 确保随机数长度不超过最大可用加密长度
+        # 生成一个长度不超过max_data_length的随机数字符串
+        random_digits = str(random.randint(100000, 99999999999999999999999))
+        random_number = random_digits.encode('utf-8')
+        
+        # 检查数据长度
+        if len(random_number) > max_data_length:
+            print(f"警告：随机数长度({len(random_number)}字节)超过最大可用加密长度({max_data_length}字节)，自动截断")
+            # 截断到安全长度
+            random_number = random_number[:max_data_length]
+            random_digits = random_number.decode('utf-8')
+        
+        print(f"生成的随机数: {random_digits}")
+        print(f"随机数长度: {len(random_number)} 字节")
+        
+        # 2. 使用服务端公钥加密随机数
+        encrypted_data = public_key.encrypt(
+            random_number,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+        print(f"加密后的密文: {encrypted_data.hex()[:30]}...")
+        
+        # 3. 使用上传的私钥解密密文
+        decrypted_data = private_key.decrypt(
+            encrypted_data,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+        print(f"解密后的结果: {decrypted_data.decode('utf-8')}")
+        print(f"解密结果长度: {len(decrypted_data)} 字节")
+        
+        # 4. 比较解密结果和原随机数
+        if decrypted_data == random_number:
+            print("RSA密钥对验证成功: 解密结果与原数据一致")
+            return True
+        else:
+            print("RSA密钥对验证失败: 解密结果与原数据不一致")
+            return False
+            
     except ValueError as e:
         print(f"私钥密码错误或私钥格式错误: {e}")
         return False
     except Exception as e:
         print(f"私钥验证失败: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
@@ -1054,8 +1597,88 @@ def admin_login_post():
 @require_admin_token
 def admin_logout():
     """管理员登出"""
+    # 清除管理员token
     session.pop('admin_token', None)
+    session.pop('admin_username', None)
+    
+    # 检查是否有普通用户的token需要删除
+    token = session.get('token')
+    if token and token in tokens:
+        del tokens[token]
+        save_tokens()
+    
+    # 清除普通用户的session信息
+    session.pop('user_logged_in', None)
+    session.pop('username', None)
+    session.pop('token', None)
+    
     return redirect('/admin/login')
+
+
+@app.route('/@vite/client')
+def vite_client():
+    """
+    处理@vite/client请求，返回204 No Content，避免404错误日志
+    """
+    return '', 204
+
+
+@app.route('/admin/get-private-key')
+@require_admin_token
+def get_private_key():
+    """
+    获取RSA私钥内容
+    """
+    try:
+        base_path = get_base_path()
+        private_key_path = os.path.join(base_path, 'key', 'private_key.key')
+        
+        if os.path.exists(private_key_path):
+            with open(private_key_path, 'r') as f:
+                private_key_content = f.read()
+            return private_key_content, 200, {'Content-Type': 'text/plain'}
+        else:
+            return jsonify({"status": "error", "message": "私钥文件不存在"}), 404
+    except Exception as e:
+        print(f"获取私钥内容失败: {e}")
+        return jsonify({"status": "error", "message": "获取私钥内容失败"}), 500
+
+
+@app.route('/admin/download-private-key')
+@require_admin_token
+def download_private_key():
+    """
+    下载RSA私钥文件
+    下载完成后删除服务端的私钥文件
+    """
+    try:
+        base_path = get_base_path()
+        private_key_path = os.path.join(base_path, 'key', 'private_key.key')
+        private_key_pem_path = os.path.join(base_path, 'key', 'private_key.pem')
+        
+        if os.path.exists(private_key_path):
+            # 先读取文件内容，然后删除文件，最后返回文件内容
+            with open(private_key_path, 'rb') as f:
+                private_key_content = f.read()
+            
+            # 删除服务端的私钥文件
+            os.remove(private_key_path)
+            print(f"已删除服务端私钥文件: {private_key_path}")
+            
+            # 如果存在private_key.pem文件，也一并删除
+            if os.path.exists(private_key_pem_path):
+                os.remove(private_key_pem_path)
+                print(f"已删除服务端私钥PEM文件: {private_key_pem_path}")
+            
+            # 返回文件内容给用户下载
+            return Response(private_key_content, 
+                           mimetype='application/octet-stream',
+                           headers={'Content-Disposition': f'attachment; filename=private_key.key'})
+        else:
+            return jsonify({"status": "error", "message": "私钥文件不存在"}), 404
+    except Exception as e:
+        print(f"下载私钥文件失败: {e}")
+        return jsonify({"status": "error", "message": "下载私钥文件失败"}), 500
 
 
 # 文件操作API
@@ -1086,6 +1709,45 @@ def api_files():
     })
 
 
+@app.route('/api/my_files')
+@login_required
+def api_my_files():
+    """获取当前用户上传的文件列表API"""
+    username = session.get('username', 'unknown')
+    metadata = load_metadata()
+    disk = get_disk_usage()
+    
+    # 获取当前用户上传的文件
+    my_files = []
+    for filename, file_meta in metadata.items():
+        if file_meta.get('user') == username:
+            # 获取文件的完整信息
+            file_path = os.path.join(system_config['upload_folder'], filename)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                try:
+                    file_info = os.stat(file_path)
+                    my_files.append({
+                        'filename': filename,
+                        'name': filename,
+                        'size': file_info.st_size,
+                        'modified': file_info.st_mtime,
+                        'created': file_info.st_ctime,
+                        'download_count': file_meta.get('download_count', 0),
+                        'hash': filename
+                    })
+                except Exception as e:
+                    print(f"获取文件信息失败: {filename}, 错误: {e}")
+    
+    # 按修改时间排序(最新在上)
+    my_files.sort(key=lambda x: x['modified'], reverse=True)
+    
+    return jsonify({
+        'files': my_files,
+        'disk_used': disk['upload_used'],
+        'max_storage': system_config['max_total_size'] * 1024 * 1024
+    })
+
+
 @app.route('/api/upload', methods=['POST'])
 @login_required
 def upload():
@@ -1099,10 +1761,17 @@ def upload():
     if not file.filename or '.' not in file.filename:
         return jsonify({"status": "error", "message": "无效的文件名"})
     
-    # 允许上传.zip和.adofai文件
-    allowed_extensions = ['.zip', '.adofai']
-    if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
-        return jsonify({"status": "error", "message": "只允许上传.zip和.adofai文件"})
+    # 检查文件扩展名是否允许上传
+    if not is_file_extension_allowed(file.filename):
+        config = get_file_extension_config()
+        if config['enabled']:
+            if config['mode'] == 'whitelist':
+                allowed_extensions = ', '.join(config['extensions'])
+                return jsonify({"status": "error", "message": f"只允许上传以下类型的文件：{allowed_extensions}"})
+            else:
+                disallowed_extensions = ', '.join(config['extensions'])
+                return jsonify({"status": "error", "message": f"不允许上传以下类型的文件：{disallowed_extensions}"})
+        return jsonify({"status": "error", "message": "文件类型不允许上传"})
     
     file.seek(0, os.SEEK_END)
     file_size = file.tell()
@@ -1134,8 +1803,14 @@ def upload():
                 "message": "空间不足,请稍后再试"
             })
         
-        # 安全保存文件
-        filename = secure_filename(file.filename)
+        # 保留原始中文文件名，仅移除不安全字符
+        original_filename = file.filename
+        # 移除路径分隔符和其他不安全字符，但保留中文
+        filename = original_filename.replace('..', '').replace('/', '').replace('\\', '')
+        # 处理空文件名情况
+        if not filename or '.' not in filename:
+            return jsonify({"status": "error", "message": "无效的文件名"})
+        
         save_path = os.path.join(system_config['upload_folder'], filename)
         
         # 处理重名文件
@@ -1150,7 +1825,12 @@ def upload():
         
         try:
             file.save(save_path)
-            update_metadata(filename, 'upload')
+            # 获取当前登录用户的用户名
+            username = session.get('username', 'unknown')
+            # 更新文件元数据，记录上传用户
+            update_metadata(filename, 'upload', username)
+            # 更新用户的文件列表
+            update_user_files(username, filename, 'add')
             return jsonify({"status": "success", "filename": filename})
         except Exception as e:
             return jsonify({"status": "error", "message": f"保存失败: {str(e)}"})
@@ -1159,7 +1839,7 @@ def upload():
 @app.route('/api/delete_file', methods=['POST'])
 @require_admin_token
 def api_delete_file():
-    """删除文件API"""
+    """管理员删除文件API"""
     try:
         # 从JSON数据获取文件名
         data = request.get_json()
@@ -1169,7 +1849,7 @@ def api_delete_file():
             return jsonify({"status": "error", "message": "文件名不能为空"}), 400
         
         # 安全检查，防止目录遍历攻击
-        if '../' in filename or not re.match(r'^[\w\-. ]+$', filename):
+        if '../' in filename or not re.match(r'^[\w\-. \u4e00-\u9fa5]+$', filename):
             return jsonify({"status": "error", "message": "无效的文件名"}), 400
         
         file_path = os.path.join(system_config['upload_folder'], filename)
@@ -1189,9 +1869,80 @@ def api_delete_file():
             return jsonify({"status": "error", "message": "文件不存在"}), 404
         
         try:
+            # 在删除文件前，获取文件的上传用户
+            metadata = load_metadata()
+            file_metadata = metadata.get(filename, {})
+            upload_user = file_metadata.get('user', 'unknown')
+            
+            # 删除文件
             os.remove(file_path)
+            
             # 更新元数据
             update_metadata(filename, 'delete')
+            
+            # 从用户的文件列表中移除该文件
+            update_user_files(upload_user, filename, 'remove')
+            
+            return jsonify({"status": "success", "message": "文件已删除"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"删除失败: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"请求处理失败: {str(e)}"}), 500
+
+
+@app.route('/api/delete_my_file', methods=['POST'])
+@login_required
+def api_delete_my_file():
+    """普通用户删除自己上传的文件API"""
+    try:
+        # 从JSON数据获取文件名
+        data = request.get_json()
+        filename = data.get('filename')
+        
+        if not filename:
+            return jsonify({"status": "error", "message": "文件名不能为空"}), 400
+        
+        # 安全检查，防止目录遍历攻击
+        if '../' in filename or not re.match(r'^[\w\-. \u4e00-\u9fa5]+$', filename):
+            return jsonify({"status": "error", "message": "无效的文件名"}), 400
+        
+        # 获取当前用户
+        current_user = session.get('username', 'unknown')
+        
+        # 检查文件是否为当前用户上传
+        metadata = load_metadata()
+        file_metadata = metadata.get(filename, {})
+        upload_user = file_metadata.get('user', 'unknown')
+        
+        if upload_user != current_user:
+            return jsonify({"status": "error", "message": "无权删除该文件"}), 403
+        
+        file_path = os.path.join(system_config['upload_folder'], filename)
+        
+        # 确保文件在上传目录内
+        real_upload_dir = os.path.realpath(system_config['upload_folder'])
+        real_file_path = os.path.realpath(file_path)
+        
+        if not real_file_path.startswith(real_upload_dir):
+            return jsonify({"status": "error", "message": "文件不在上传目录内"}), 400
+        
+        # 检查是否为符号链接
+        if os.path.islink(file_path):
+            return jsonify({"status": "error", "message": "不能删除符号链接文件"}), 400
+        
+        if not os.path.exists(file_path):
+            return jsonify({"status": "error", "message": "文件不存在"}), 404
+        
+        try:
+            # 删除文件
+            os.remove(file_path)
+            
+            # 更新元数据
+            update_metadata(filename, 'delete')
+            
+            # 从用户的文件列表中移除该文件
+            update_user_files(current_user, filename, 'remove')
+            
             return jsonify({"status": "success", "message": "文件已删除"})
         except Exception as e:
             return jsonify({"status": "error", "message": f"删除失败: {str(e)}"}), 500
@@ -1283,6 +2034,96 @@ def api_update_config():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
+@app.route('/api/update_security_settings', methods=['POST'], endpoint='update_security_settings')
+@require_admin_token
+def api_update_security_settings():
+    """更新安全设置API"""
+    try:
+        data = request.get_json()
+        
+        # 更新用户登录启用设置
+        if 'user_login_enabled' in data:
+            # 处理复选框逻辑：'on'、true、1都视为启用
+            system_config['user_login_enabled'] = data['user_login_enabled'] == 'on' or \
+                                                data['user_login_enabled'] is True or \
+                                                data['user_login_enabled'] == 1 or \
+                                                str(data['user_login_enabled']).lower() == 'true'
+        
+        save_config()
+        return jsonify({"status": "success", "config": system_config})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@app.route('/api/token_settings', methods=['GET', 'POST'])
+@require_admin_token
+def api_token_settings():
+    """Token设置API"""
+    global TOKEN_EXPIRY
+    
+    if request.method == 'GET':
+        # 获取当前token设置
+        return jsonify({
+            'status': 'success',
+            'token_expiry': TOKEN_EXPIRY
+        })
+    elif request.method == 'POST':
+        # 更新token设置
+        try:
+            data = request.get_json()
+            new_expiry = data.get('token_expiry')
+            
+            if new_expiry and isinstance(new_expiry, int) and new_expiry > 0:
+                TOKEN_EXPIRY = new_expiry
+                # 将TOKEN_EXPIRY保存到配置文件中
+                system_config['token_expiry'] = TOKEN_EXPIRY
+                save_config()
+                app.logger.info(f"更新Token有效期为: {TOKEN_EXPIRY}秒")
+                return jsonify({"status": "success", "message": "Token设置已更新"})
+            else:
+                return jsonify({"status": "error", "message": "无效的Token有效期"}), 400
+        except Exception as e:
+            app.logger.error(f"更新Token设置失败: {str(e)}")
+            return jsonify({"status": "error", "message": f"更新Token设置失败: {str(e)}"}), 500
+
+@app.route('/api/manage_tokens', methods=['GET', 'POST'])
+@require_admin_token
+def api_manage_tokens():
+    """管理Token API"""
+    if request.method == 'GET':
+        # 获取所有token信息
+        tokens_info = []
+        current_time = time.time()
+        for token, info in tokens.items():
+            is_expired = current_time >= info['expiry']
+            tokens_info.append({
+                'token': token,
+                'username': info['username'],
+                'expiry': info['expiry'],
+                'is_expired': is_expired,
+                'expiry_str': datetime.fromtimestamp(info['expiry']).strftime('%Y-%m-%d %H:%M:%S')
+            })
+        return jsonify({"status": "success", "tokens": tokens_info})
+    elif request.method == 'POST':
+        # 管理token（删除等操作）
+        try:
+            data = request.get_json()
+            action = data.get('action')
+            token = data.get('token')
+            
+            if action == 'delete' and token:
+                if token in tokens:
+                    del tokens[token]
+                    save_tokens()
+                    app.logger.info(f"管理员删除了Token: {token}")
+                    return jsonify({"status": "success", "message": "Token已删除"})
+                else:
+                    return jsonify({"status": "error", "message": "Token不存在"}), 404
+            else:
+                return jsonify({"status": "error", "message": "无效的操作或参数"}), 400
+        except Exception as e:
+            app.logger.error(f"管理Token失败: {str(e)}")
+            return jsonify({"status": "error", "message": f"管理Token失败: {str(e)}"}), 500
+
 @app.route('/api/check_config_file', methods=['GET'], endpoint='check_config_file')
 @require_admin_token
 def api_check_config_file():
@@ -1311,6 +2152,100 @@ def api_check_config_file():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/file_extensions', methods=['GET', 'POST'], endpoint='file_extensions')
+@require_admin_token
+def api_file_extensions():
+    """文件扩展名黑白名单管理API"""
+    try:
+        if request.method == 'GET':
+            # 获取当前配置
+            config = get_file_extension_config()
+            return jsonify({"status": "success", "config": config})
+        elif request.method == 'POST':
+            # 更新配置
+            data = request.get_json()
+            
+            # 验证配置
+            if 'enabled' not in data:
+                return jsonify({"status": "error", "message": "缺少enabled字段"}), 400
+            
+            if 'mode' not in data or data['mode'] not in ['whitelist', 'blacklist']:
+                return jsonify({"status": "error", "message": "mode字段无效，必须是whitelist或blacklist"}), 400
+            
+            if 'extensions' not in data or not isinstance(data['extensions'], list):
+                return jsonify({"status": "error", "message": "extensions字段无效，必须是数组"}), 400
+            
+            # 保存配置
+            config = {
+                'enabled': data['enabled'],
+                'mode': data['mode'],
+                'extensions': data['extensions']
+            }
+            
+            if save_file_extension_config(config):
+                return jsonify({"status": "success", "message": "文件扩展名配置已更新", "config": config})
+            else:
+                return jsonify({"status": "error", "message": "保存配置失败"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/theme_settings', methods=['GET', 'POST'], endpoint='theme_settings')
+@require_admin_token
+def api_theme_settings():
+    """
+    主题设置API，用于获取和保存主题颜色设置
+    """
+    try:
+        if request.method == 'GET':
+            # 获取当前主题设置
+            colors = get_theme_settings()
+            return jsonify({"status": "success", "colors": colors})
+        elif request.method == 'POST':
+            # 保存主题设置
+            data = request.get_json()
+            # 保存主题颜色设置
+            save_theme_settings(data)
+            app.logger.info("管理员更新了主题设置")
+            return jsonify({"status": "success", "message": "主题设置已保存", "colors": data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/file_content', methods=['GET'], endpoint='file_content')
+def api_file_content():
+    """
+    获取文件内容API，用于文件预览
+    """
+    try:
+        filename = request.args.get('filename')
+        if not filename:
+            return jsonify({"status": "error", "message": "缺少文件名参数"}), 400
+        
+        # 直接使用解码后的文件名，因为URL参数已经经过URL编码
+        file_path = os.path.join(system_config['upload_folder'], filename)
+        
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            return jsonify({"status": "error", "message": "文件不存在"}), 404
+        
+        # 检查文件是否在允许的目录内（防止路径遍历攻击）
+        real_upload_dir = os.path.realpath(system_config['upload_folder'])
+        real_file_path = os.path.realpath(file_path)
+        if not real_file_path.startswith(real_upload_dir):
+            return jsonify({"status": "error", "message": "非法的文件路径"}), 403
+        
+        # 限制文件大小，防止过大的文件导致内存问题
+        max_preview_size = 10 * 1024 * 1024  # 10MB
+        if os.path.getsize(file_path) > max_preview_size:
+            return jsonify({"status": "error", "message": "文件过大，无法预览"}), 413
+        
+        # 读取文件内容
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        return content, 200, {'Content-Type': 'text/plain'}
+    except Exception as e:
+        app.logger.error(f"获取文件内容失败: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # 用户登录检查装饰器
 
@@ -1390,11 +2325,43 @@ def validate_user(username_value, password_value):
 # 页面路由
 @app.route('/')
 def index():
-    """用户登录页面"""
+    """用户登录页面 - 根据配置决定显示登录页还是直接以游客身份进入"""
+    # 检查是否已经登录
+    if 'user_logged_in' in session and session['user_logged_in']:
+        # 根据用户名决定重定向到哪个页面
+        if session.get('username') == '游客':
+            return redirect(url_for('guest_page'))
+        else:
+            return redirect(url_for('user_page'))
+    
+    # 显示登录页面，无论是否启用用户登录
     return render_template(
         'index.html',
-        app_name=system_config['app_name']
+        app_name=system_config['app_name'],
+        user_login_enabled=system_config.get('user_login_enabled', True)
     )
+
+@app.route('/guest/login', methods=['GET'])
+def guest_login():
+    """游客登录处理 - 直接以游客身份进入系统"""
+    # 检查是否启用用户登录
+    if system_config.get('user_login_enabled', True):
+        # 如果启用了用户登录，重定向到登录页面
+        app.logger.info(f"用户登录功能已启用，不允许直接游客登录，重定向到登录页")
+        return redirect(url_for('index'))
+    
+    # 清空旧session
+    session.clear()
+    # 设置session为永久会话
+    session.permanent = True
+    # 设置登录标记和游客信息
+    session['user_logged_in'] = True
+    session['username'] = '游客'
+    session['login_time'] = datetime.now().isoformat()
+    # 记录详细日志
+    app.logger.info(f"游客登录成功，自动创建会话")
+    # 重定向到游客专用页面
+    return redirect(url_for('guest_page'))
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -1425,14 +2392,40 @@ def login():
         session['user_logged_in'] = True
         session['username'] = username
         session['login_time'] = datetime.now().isoformat()
-        # 记录详细日志
-        app.logger.info(f"用户 {username} 登录成功，session已创建，cookie应已设置")
+        
+        # 删除该用户所有现有的token，实现同一用户多设备登录时旧token失效
+        # 这样每次登录都会生成新的token，旧的token会被删除
+        tokens_to_delete = []
+        for token, info in tokens.items():
+            if info['username'] == username:
+                tokens_to_delete.append(token)
+        
+        for token in tokens_to_delete:
+            del tokens[token]
+        
+        # 生成新token
+        token = generate_token()
+        # 存储token信息
+        tokens[token] = {
+            'username': username,
+            'expiry': time.time() + TOKEN_EXPIRY
+        }
+        # 保存tokens到文件
+        save_tokens()
+        app.logger.info(f"用户 {username} 登录成功，生成新token: {token}")
         
         # 直接重定向到用户页面，绕过前端可能的问题
         if request.is_json:
-            # 对于JSON请求，返回重定向指令
-            return jsonify({'status': 'success', 'redirect': '/user'})
+            # 对于JSON请求，返回token和重定向指令
+            return jsonify({
+                'status': 'success', 
+                'token': token,
+                'username': username,
+                'redirect': '/user'
+            })
         else:
+            # 对于表单提交，将token存储在session中
+            session['token'] = token
             return redirect(url_for('user_page'))
     else:
         app.logger.info(f"用户 {username} 登录失败：用户名或密码错误")
@@ -1451,8 +2444,56 @@ def user_page():
     has_login_time = 'login_time' in session
     app.logger.info(f"访问用户页面，用户名: {username}, 登录时间存在: {has_login_time}")
     
+    # 检查是否为游客用户，如果是则重定向到游客页面
+    if username == '游客':
+        app.logger.info(f"游客用户访问用户页面，重定向到游客专用页面")
+        return redirect(url_for('guest_page'))
+    
     disk = get_disk_usage()
     files = get_file_list()
+    
+    # 获取用户的QQ信息
+    user_qq = ''
+    users_file = os.path.join('user', 'user.json')
+    if os.path.exists(users_file):
+        with open(users_file, 'r', encoding='utf-8') as f:
+            user_data = json.load(f)
+            users = user_data.get('users', [])
+            for user in users:
+                if user.get('username') == username:
+                    user_qq = user.get('qq', '')
+                    break
+    
+    # 计算统计信息
+    login_time = session.get('login_time', '')
+    # 检查login_time的类型，确保只对datetime对象调用strftime
+    if isinstance(login_time, datetime):
+        login_time = login_time.strftime('%Y-%m-%d %H:%M:%S')
+    # 如果是字符串，直接使用
+    elif not login_time:
+        login_time = ''
+    
+    # 获取元数据
+    metadata = load_metadata()
+    
+    # 统计用户上传的文件
+    user_files = []
+    for filename, file_info in metadata.items():
+        if file_info.get('user') == username:
+            user_files.append({
+                'name': filename,
+                'size': file_info.get('size', 0),
+                'created': file_info.get('created', 0)
+            })
+    
+    total_uploads = len(user_files)
+    total_upload_size = sum(file['size'] for file in user_files)
+    
+    last_upload_time = ''
+    if user_files:
+        # 按创建时间排序，取最新的
+        latest_file = max(user_files, key=lambda f: f['created'])
+        last_upload_time = datetime.fromtimestamp(latest_file['created']).strftime('%Y-%m-%d %H:%M:%S')
     
     return render_template(
         'user.html',
@@ -1463,27 +2504,172 @@ def user_page():
         free_space=convert_size(disk['available']),
         max_file_size=system_config['max_file_size'],
         usage_percent=disk['usage_percent'],
+        username=username,
+        qq=user_qq,
+        login_time=login_time,
+        total_uploads=total_uploads,
+        total_upload_size=convert_size(total_upload_size),
+        last_upload_time=last_upload_time
+    )
+
+@app.route('/guest')
+@login_required
+def guest_page():
+    """游客专用页面"""
+    # 记录详细的session信息
+    username = session.get('username', '未知用户')
+    has_login_time = 'login_time' in session
+    app.logger.info(f"访问游客页面，用户名: {username}, 登录时间存在: {has_login_time}")
+    
+    disk = get_disk_usage()
+    files = get_file_list()
+    
+    return render_template(
+        'guest.html',
+        files=files,
+        app_name=system_config['app_name'],
+        system_version=system_config['app_version'],
+        total_space=convert_size(disk['upload_total']),
+        used_space=convert_size(disk['upload_used']),
+        free_space=convert_size(disk['available']),
+        max_file_size=system_config['max_file_size'],
+        usage_percent=disk['usage_percent'],
         username=username
     )
+
+@app.route('/api/token_expiry')
+def get_token_expiry():
+    """获取当前token的剩余有效期"""
+    # 从请求头获取token
+    token = request.headers.get('Authorization') or request.headers.get('X-Token')
+    if token and token.startswith('Bearer '):
+        token = token[7:]
+    
+    # 从session获取token（如果有）
+    if not token:
+        token = session.get('token')
+    
+    if not token or token not in tokens:
+        return jsonify({'status': 'error', 'message': '无效的token'}), 401
+    
+    # 计算剩余时间
+    current_time = time.time()
+    expiry_time = tokens[token]['expiry']
+    remaining_seconds = max(0, int(expiry_time - current_time))
+    
+    return jsonify({
+        'status': 'success',
+        'token': token,
+        'expiry': int(expiry_time),
+        'remaining_seconds': remaining_seconds,
+        'expiry_time': datetime.fromtimestamp(expiry_time).isoformat()
+    })
 
 @app.route('/logout')
 def logout():
     """用户登出"""
+    # 从session获取token
+    token = session.get('token')
+    if token:
+        # 删除服务器端的token
+        if token in tokens:
+            del tokens[token]
+            save_tokens()
+    
+    # 从请求头获取token（如果有）
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        if token in tokens:
+            del tokens[token]
+            save_tokens()
+    
+    # 清除session中的用户信息
     session.pop('user_logged_in', None)
     session.pop('username', None)
+    session.pop('token', None)
     return redirect(url_for('index'))
+
+@app.route('/markdown-viewer')
+def markdown_viewer():
+    """Markdown文件查看器"""
+    filename = request.args.get('file')
+    theme = request.args.get('theme', 'light')
+    return render_template('markdown-viewer.html', filename=filename, theme=theme)
 
 @app.route('/bug_report')
 def bug_report():
     """Bug报告页面"""
     return render_template('bug_report.html')
 
+@app.route('/api/github-update-info')
+def api_github_update_info():
+    """获取GitHub更新信息"""
+    try:
+        import requests
+        import markdown
+        import re
+        from datetime import datetime
+        
+        # GitHub仓库API URL
+        repo_url = "https://api.github.com/repos/508364/Announcement/contents/Update/FileSharePlatform-Adofai-Simplified-Version"
+        
+        # 发送请求获取目录内容，添加 verify=False 跳过SSL证书验证
+        response = requests.get(repo_url, verify=False)
+        response.raise_for_status()
+        
+        files = response.json()
+        md_files = [f for f in files if f['name'].endswith('.md')]
+        
+        if not md_files:
+            return jsonify({"status": "error", "message": "未找到.md文件"})
+        
+        # 尝试从文件名中提取日期并排序，获取最新的.md文件
+        def extract_date_from_filename(filename):
+            # 尝试匹配文件名中的日期格式（如 2023-12-31 或 20231231）
+            date_match = re.search(r'(\d{4}[-_]?\d{2}[-_]?\d{2})', filename)
+            if date_match:
+                date_str = date_match.group(1).replace('_', '-')
+                try:
+                    return datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError:
+                    try:
+                        return datetime.strptime(date_str, '%Y%m%d')
+                    except ValueError:
+                        pass
+            # 如果无法提取日期，返回一个较早的日期
+            return datetime(1970, 1, 1)
+        
+        # 按日期排序，最新的在前
+        md_files.sort(key=lambda x: extract_date_from_filename(x['name']), reverse=True)
+        md_file = md_files[0]
+        file_url = md_file['download_url']
+        
+        # 下载文件内容，添加 verify=False 跳过SSL证书验证
+        file_response = requests.get(file_url, verify=False)
+        file_response.raise_for_status()
+        
+        # 转换Markdown为HTML
+        md_content = file_response.text
+        html_content = markdown.markdown(md_content)
+        
+        return jsonify({"status": "success", "content": html_content, "filename": md_file['name']})
+    except Exception as e:
+        app.logger.error(f"获取GitHub更新信息失败: {str(e)}")
+        # 提供更详细的错误信息
+        error_message = f"获取失败: {str(e)}"
+        if "No module named 'markdown'" in str(e):
+            error_message = "获取失败: 缺少markdown模块，请安装后重试"
+        elif "Connection" in str(e) or "timeout" in str(e).lower():
+            error_message = "获取失败: 网络连接错误，请检查网络后重试"
+        return jsonify({"status": "error", "message": error_message}), 500
+
 
 @app.route('/download/<filename>')
 @login_required
 def download(filename):
     """文件下载路由"""
-    if '../' in filename or not re.match(r'^[\w\-. ]+$', filename):
+    if '../' in filename or not re.match(r'^[\w\-. \u4e00-\u9fa5]+$', filename):
         abort(400)
     
     upload_dir = system_config['upload_folder']
@@ -1504,7 +2690,7 @@ def download(filename):
 @login_required
 def preview(filename):
     """文件预览路由"""
-    if '../' in filename or not re.match(r'^[\w\-. ]+$', filename):
+    if '../' in filename or not re.match(r'^[\w\-. \u4e00-\u9fa5]+$', filename):
         abort(400)
     
     upload_dir = system_config['upload_folder']
@@ -1540,14 +2726,11 @@ def preview_inner_file(zip_filename, inner_filename):
     if '../' in zip_filename or '../' in inner_filename:
         abort(400)
     
-    # 更宽松的文件名检查，允许更多字符
-    if not re.match(r'^[\w\-. \(\)\[\]\{\}│¼╟σ%]+$', zip_filename) or not re.match(r'^[\w\-. \(\)\[\]\{\}│¼╟σ%]+$', inner_filename):
+    # 更宽松的文件名检查，允许更多字符和中文
+    if not re.match(r'^[\w\-. \(\)\[\]\{\}│¼╟σ%\u4e00-\u9fa5]+$', zip_filename) or not re.match(r'^[\w\-. \(\)\[\]\{\}│¼╟σ%\u4e00-\u9fa5]+$', inner_filename):
         abort(400)
     
-    # URL解码文件名
-    import urllib.parse
-    zip_filename = urllib.parse.unquote(zip_filename)
-    inner_filename = urllib.parse.unquote(inner_filename)
+    
     
     # 检查zip文件是否存在
     upload_dir = system_config['upload_folder']
@@ -1695,7 +2878,7 @@ def preview_inner_file(zip_filename, inner_filename):
         import mimetypes
         mime_type, _ = mimetypes.guess_type(inner_file_path)
         
-        # 对于视频文件，确保返回正确的MIME类型
+        # 对于视频和音频文件，确保返回正确的MIME类型
         if inner_filename.lower().endswith('.mp4'):
             mime_type = 'video/mp4'
         elif inner_filename.lower().endswith('.avi'):
@@ -1704,6 +2887,25 @@ def preview_inner_file(zip_filename, inner_filename):
             mime_type = 'video/quicktime'
         elif inner_filename.lower().endswith('.mkv'):
             mime_type = 'video/x-matroska'
+        elif inner_filename.lower().endswith('.wmv'):
+            mime_type = 'video/x-ms-wmv'
+        elif inner_filename.lower().endswith('.flv'):
+            mime_type = 'video/x-flv'
+        elif inner_filename.lower().endswith('.webm'):
+            mime_type = 'video/webm'
+        # 音频文件MIME类型
+        elif inner_filename.lower().endswith('.mp3'):
+            mime_type = 'audio/mpeg'
+        elif inner_filename.lower().endswith('.wav'):
+            mime_type = 'audio/wav'
+        elif inner_filename.lower().endswith('.flac'):
+            mime_type = 'audio/flac'
+        elif inner_filename.lower().endswith('.aac'):
+            mime_type = 'audio/aac'
+        elif inner_filename.lower().endswith('.ogg'):
+            mime_type = 'audio/ogg'
+        elif inner_filename.lower().endswith('.wma'):
+            mime_type = 'audio/x-ms-wma'
         
         # 检查是否为范围请求
         range_header = request.headers.get('Range', None)
@@ -1726,8 +2928,9 @@ def preview_inner_file(zip_filename, inner_filename):
                 print(f"Range request parsing error: {str(e)}")
         
         # 如果不是范围请求，正常发送文件
-        # 对于视频文件，使用更直接的方式发送
-        if inner_filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        # 对于视频和音频文件，使用更直接的方式发送
+        if inner_filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm', 
+                                         '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma')):
             # 直接打开文件并流式传输
             file_size = os.path.getsize(inner_file_path)
             response = Response(open(inner_file_path, 'rb'), mimetype=mime_type or 'application/octet-stream')
@@ -1737,7 +2940,7 @@ def preview_inner_file(zip_filename, inner_filename):
             return response
         else:
             response = make_response(send_file(inner_file_path))
-            # 设置Accept-Ranges头以支持视频流
+            # 设置Accept-Ranges头以支持视频/音频流
             response.headers['Accept-Ranges'] = 'bytes'
             
             if mime_type:
@@ -1805,6 +3008,87 @@ def api_file_info():
     return jsonify(response_data)
 
 
+# 检查ZIP文件内部媒体文件API
+@app.route('/api/check_zip_media')
+@login_required
+def api_check_zip_media():
+    """
+    检查ZIP文件内部是否包含可预览的媒体文件（图片、音频、视频）
+    
+    Returns:
+        dict: 包含媒体文件列表的JSON响应
+    """
+    filename = request.args.get('filename')
+    if not filename:
+        return jsonify({"status": "error", "message": "未提供文件名"}), 400
+    
+    # 获取文件路径
+    file_path = os.path.join(system_config['upload_folder'], filename)
+    
+    if not os.path.exists(file_path):
+        return jsonify({"status": "error", "message": "文件不存在"}), 404
+    
+    # 检查是否为ZIP文件
+    if not filename.lower().endswith('.zip'):
+        return jsonify({"status": "error", "message": "不是ZIP文件"}), 400
+    
+    try:
+        import tempfile
+        import zipfile
+        import re
+        
+        temp_dir = tempfile.mkdtemp()
+        media_files = {
+            "images": [],
+            "audios": [],
+            "videos": []
+        }
+        
+        try:
+            # 解压zip文件
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # 定义媒体文件扩展名
+            image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp')
+            audio_extensions = ('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma')
+            video_extensions = ('.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm')
+            
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    file_lower = file.lower()
+                    # 构建文件URL
+                    file_url = f"/preview/{filename}/{file}"
+                    
+                    # 检查文件类型
+                    if file_lower.endswith(image_extensions):
+                        media_files["images"].append(file_url)
+                    elif file_lower.endswith(audio_extensions):
+                        media_files["audios"].append(file_url)
+                    elif file_lower.endswith(video_extensions):
+                        media_files["videos"].append(file_url)
+            
+            # 返回媒体文件列表
+            return jsonify({
+                "status": "success",
+                "images": media_files["images"],
+                "audios": media_files["audios"],
+                "videos": media_files["videos"],
+                "count": {
+                    "total": len(media_files["images"]) + len(media_files["audios"]) + len(media_files["videos"]),
+                    "images": len(media_files["images"]),
+                    "audios": len(media_files["audios"]),
+                    "videos": len(media_files["videos"])
+                }
+            })
+        finally:
+            # 清理临时目录
+            import shutil
+            shutil.rmtree(temp_dir)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"检查ZIP文件失败: {str(e)}"}), 500
+
+
 # Adofai谱面文件解析API
 @app.route('/api/adofai_level_info')
 @login_required
@@ -1830,6 +3114,10 @@ def api_adofai_level_info():
                 import json
                 adofai_data = json.load(f)
             
+            # 提取pathData并计算步数
+            path_data = adofai_data.get('pathData', '')
+            steps_count = len(path_data)
+            
             # 提取关键信息
             level_info = {
                 "song": adofai_data.get("song", "未知"),
@@ -1841,7 +3129,8 @@ def api_adofai_level_info():
                 "previewIcon": adofai_data.get("previewIcon", "未知"),
                 "seizureWarning": adofai_data.get("seizureWarning", False),
                 "bg": adofai_data.get("bg", "未知"),
-                "eggs": adofai_data.get("eggs", [])
+                "eggs": adofai_data.get("eggs", []),
+                "steps_count": steps_count
             }
             
             # 对于单独的.adofai文件，没有关联的音频、图片和视频文件
@@ -1871,55 +3160,107 @@ def api_adofai_level_info():
                 
                 for root, dirs, files in os.walk(temp_dir):
                     for file in files:
-                        if file.endswith('.adofai'):
+                        if file.lower().endswith('.adofai'):
                             adofai_file = os.path.join(root, file)
-                        elif file.endswith(('.ogg', '.mp3', '.wav')):
+                        elif file.lower().endswith(('.ogg', '.mp3', '.wav', '.flac', '.aac')):
                             audio_file = os.path.join(root, file)
-                        elif file.endswith(('.png', '.jpg', '.jpeg')):
+                        elif file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
                             image_files.append(os.path.join(root, file))
-                        elif file.endswith(('.mp4', '.avi', '.mkv')):
+                        elif file.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm')):
                             video_files.append(os.path.join(root, file))
                 
-                # 检查必需文件
-                if not adofai_file:
-                    return jsonify({"status": "error", "message": "未找到.adofai文件"}), 400
+                # 获取所有文件和文件夹列表（带类型和大小）
+                all_files = []
+                all_dirs = []
+                all_regular_files = []
                 
-                # 读取.adofai文件内容
-                with open(adofai_file, 'r', encoding='utf-8-sig') as f:
-                    import json
-                    adofai_data = json.load(f)
+                for root, dirs, files in os.walk(temp_dir):
+                    # 处理当前目录下的文件夹
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
+                        # 计算文件夹大小
+                        dir_size = 0
+                        for dirpath, dirnames, filenames in os.walk(dir_path):
+                            for f in filenames:
+                                fp = os.path.join(dirpath, f)
+                                if os.path.isfile(fp):
+                                    dir_size += os.path.getsize(fp)
+                        all_dirs.append({
+                            "name": dir_name,
+                            "type": "directory",
+                            "size": dir_size
+                        })
+                    # 处理当前目录下的文件
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        file_size = os.path.getsize(file_path)
+                        # 提取文件扩展名
+                        ext = os.path.splitext(file)[1].lower() or ""  # 确保ext包含点号
+                        if ext.startswith("."):
+                            ext = ext[1:]  # 移除点号
+                        all_regular_files.append({
+                            "name": file,
+                            "type": "file",
+                            "size": file_size,
+                            "extension": ext
+                        })
                 
-                # 提取关键信息
-                settings = adofai_data.get("settings", {})
-                level_info = {
-                    "song": settings.get("song", "未知"),
-                    "artist": settings.get("artist", "未知"),
-                    "author": settings.get("author", "未知"),
-                    "difficulty": settings.get("difficulty", "未知"),
-                    "bpm": settings.get("bpm", "未知"),
-                    "previewImage": settings.get("previewImage", "未知"),
-                    "previewIcon": settings.get("previewIcon", "未知"),
-                    "seizureWarning": settings.get("seizureWarning", False),
-                    "bg": settings.get("bg", "未知"),
-                    "eggs": adofai_data.get("eggs", [])
-                }
+                # 首先添加文件夹，然后添加文件，确保文件夹排在前面
+                all_files = all_dirs + all_regular_files
                 
-                # 获取音频文件名
-                audio_filename = os.path.basename(audio_file) if audio_file else None
-                
-                # 获取图片文件名列表
-                image_filenames = [os.path.basename(img) for img in image_files]
-                
-                # 获取视频文件名列表
-                video_filenames = [os.path.basename(vid) for vid in video_files]
-                
-                return jsonify({
-                    "status": "success",
-                    "level_info": level_info,
-                    "audio_file": audio_filename,
-                    "image_files": image_filenames,
-                    "video_files": video_filenames
-                })
+                if adofai_file:
+                    # 读取.adofai文件内容
+                    with open(adofai_file, 'r', encoding='utf-8-sig') as f:
+                        import json
+                        adofai_data = json.load(f)
+                    
+                    # 提取pathData并计算步数
+                    path_data = adofai_data.get('pathData', '')
+                    steps_count = len(path_data)
+                    
+                    # 提取关键信息
+                    settings = adofai_data.get("settings", {})
+                    level_info = {
+                        "song": settings.get("song", "未知"),
+                        "artist": settings.get("artist", "未知"),
+                        "author": settings.get("author", "未知"),
+                        "difficulty": settings.get("difficulty", "未知"),
+                        "bpm": settings.get("bpm", "未知"),
+                        "previewImage": settings.get("previewImage", "未知"),
+                        "previewIcon": settings.get("previewIcon", "未知"),
+                        "seizureWarning": settings.get("seizureWarning", False),
+                        "bg": settings.get("bg", "未知"),
+                        "eggs": adofai_data.get("eggs", []),
+                        "steps_count": steps_count
+                    }
+                    
+                    # 获取音频文件名
+                    audio_filename = os.path.basename(audio_file) if audio_file else None
+                    
+                    # 获取图片文件名列表
+                    image_filenames = [os.path.basename(img) for img in image_files]
+                    
+                    # 获取视频文件名列表
+                    video_filenames = [os.path.basename(vid) for vid in video_files]
+                    
+                    return jsonify({
+                        "status": "success",
+                        "level_info": level_info,
+                        "audio_file": audio_filename,
+                        "image_files": image_filenames,
+                        "video_files": video_filenames,
+                        "files": all_files
+                    })
+                else:
+                    # 如果没有找到.adofai文件，仍然返回成功，并包含所有文件列表
+                    return jsonify({
+                        "status": "success",
+                        "level_info": {},
+                        "audio_file": None,
+                        "image_files": [],
+                        "video_files": [],
+                        "files": all_files
+                    })
             finally:
                 # 确保临时目录被清理
                 import shutil
@@ -1939,7 +3280,26 @@ if __name__ == '__main__':
     
     init_system()
 
-    
+    # 密钥管理 - 从环境变量或配置文件获取secret_key
+    # 1. 首先尝试从环境变量获取
+    secret_key = os.environ.get('FLASK_SECRET_KEY')
+
+    # 2. 如果环境变量没有，则尝试从系统配置获取
+    if not secret_key and 'secret_key' in system_config and system_config['secret_key']:
+        secret_key = system_config['secret_key']
+
+    # 3. 如果都没有，则生成一个随机密钥
+    import secrets
+    if not secret_key:
+        secret_key = secrets.token_hex(32)  # 生成64位随机十六进制字符串
+        print(f"生成随机密钥: {secret_key}")
+        # 将生成的密钥保存到配置中，以便下次使用
+        system_config['secret_key'] = secret_key
+        save_config()
+
+    # 设置Flask应用的secret_key
+    app.secret_key = secret_key
+
     os.makedirs(system_config['upload_folder'], exist_ok=True)
     os.chmod(system_config['upload_folder'], 0o777)  # 确保可写
     

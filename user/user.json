@@ -1,8 +1,13 @@
 {
     "users": [
         {
-            "username": "testuser",
-            "password": "123"
+            "username": "bata",
+            "password": "123",
+            "qq": "3196421738",
+            "File": [
+                "打包说明.md",
+                "508364___.png"
+            ]
         }
     ]
 }
