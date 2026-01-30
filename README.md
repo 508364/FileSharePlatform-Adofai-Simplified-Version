@@ -87,8 +87,8 @@ python server.py
 ```
 
 服务启动后，可以通过以下地址访问：
-- 主页面: http://localhost:5000/
-- 管理页面: http://localhost:5000/admin
+- 主页面: http://localhost:5001/
+- 管理页面: http://localhost:5001/admin
 
 ### 用户操作
 1. 在登录页面输入用户名和密码进行登录
