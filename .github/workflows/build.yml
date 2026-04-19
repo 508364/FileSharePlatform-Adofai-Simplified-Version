@@ -1,0 +1,141 @@
+name: Python Build & Deploy
+
+# 1. 只允许手动触发
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # 定义构建矩阵：操作系统、架构、以及对应的构建参数
+        include:
+          # Linux x64
+          - os: ubuntu-latest
+            arch: x64
+            target: x86_64-unknown-linux-gnu
+            type: dir 
+          # MacOS x64
+          - os: macos-latest
+            arch: x64
+            target: x86_64-apple-darwin
+            type: dir
+          # MacOS ARM64 (M1/M2)
+          - os: macos-latest
+            arch: arm64
+            target: aarch64-apple-darwin
+            type: dir
+          # Windows x64
+          - os: windows-latest
+            arch: x64
+            target: x86_64-pc-windows-msvc
+            type: exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # --- 环境准备 ---
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # --- 设置 Python (Linux/Mac) ---
+      - name: Setup Python (Unix)
+        if: runner.os != 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # --- 设置 Python (Windows) ---
+      - name: Setup Python (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          architecture: 'x64'
+
+      # --- 安装依赖 ---
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pyinstaller
+        shell: bash
+
+      # --- 执行构建 ---
+      - name: Run PyInstaller
+        run: |
+          pyinstaller fileshare.spec
+        shell: bash
+
+      # --- 整理产物 ---
+      - name: Organize Artifacts
+        id: organize
+        run: |
+          # 生成时间戳：YYYYMMDD-HHMMSS
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          # 定义文件夹名称：[系统][架构][时间][类型]
+          # 例如: Linux-x64-20231027-120000-dir
+          FOLDER_NAME="${{ runner.os }}-${{ matrix.arch }}-${TIMESTAMP}-${{ matrix.type }}"
+          
+          mkdir -p output
+          
+          # 将 dist 目录下的内容移动到 output 下的命名文件夹中
+          # 注意：PyInstaller 默认输出在 dist/ 下
+          mv dist/* output/"$FOLDER_NAME"
+          
+          echo "folder_name=$FOLDER_NAME" >> $GITHUB_OUTPUT
+        shell: bash
+
+      # --- 上传产物 (供部署阶段使用) ---
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}-${{ matrix.arch }}
+          path: output/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      # --- 检出 build 分支 ---
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+        with:
+          ref: build
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- 下载所有构建产物 ---
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./downloaded_builds
+
+      # --- 清空 build 分支并推送新文件 ---
+      - name: Clean and Push to build branch
+        run: |
+          # 配置 Git 用户
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          # 1. 清空当前分支的所有文件 (关键步骤)
+          git rm -rf . || true
+
+          # 2. 将下载的新构建文件复制到根目录
+          # 这里的结构是 downloaded_builds/build-xxx/文件夹名/文件
+          # 我们需要把里面的文件夹拿出来
+          cp -r ./downloaded_builds/*/* ./
+
+          # 3. 检查是否有变化
+          if [ -z "$(git status --porcelain)" ]; then 
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          # 4. 提交并强制推送到远程 build 分支
+          git add .
+          git commit -m "Update builds: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          git push origin build --force
