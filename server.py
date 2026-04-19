@@ -65,6 +65,255 @@ def get_base_path():
         base_path = os.path.dirname(os.path.abspath(__file__))
     return base_path
 
+# 插件系统配置
+PLUGIN_BASE_PATH = os.path.join(get_base_path(), 'plugin')
+PLUGIN_EXTENSIONS_PATH = os.path.join(PLUGIN_BASE_PATH, 'extensions')
+PLUGIN_CONFIG_PATH = os.path.join(PLUGIN_BASE_PATH, 'config')
+PLUGIN_API_PATH = os.path.join(PLUGIN_BASE_PATH, 'api')
+PLUGIN_API_FILE = os.path.join(PLUGIN_API_PATH, 'api.json')
+
+# 插件系统全局变量
+plugins = {}
+plugin_configs = {}
+plugin_api_endpoints = {}
+plugin_config_timestamps = {}
+plugin_html_pages = {}
+plugin_external_apis = {}
+
+# 插件配置更新间隔（秒）
+PLUGIN_CONFIG_UPDATE_INTERVAL = 300  # 5分钟
+
+def is_local_request():
+    """检查请求是否来自本地"""
+    if request.headers.get('X-Forwarded-For'):
+        remote_addr = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    else:
+        remote_addr = request.remote_addr or '127.0.0.1'
+    
+    # 本地请求的IP
+    local_addresses = ['127.0.0.1', 'localhost', '::1', '::ffff:127.0.0.1']
+    
+    # 获取服务器绑定的地址
+    server_host = app.config.get('SERVER_HOST', '127.0.0.1')
+    
+    return remote_addr in local_addresses or remote_addr == server_host
+
+def load_plugin_details(plugin_name):
+    """加载插件详情"""
+    plugin_path = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name)
+    details_file = os.path.join(plugin_path, 'Details.json')
+    
+    if not os.path.exists(details_file):
+        return None
+    
+    try:
+        with open(details_file, 'r', encoding='utf-8') as f:
+            details = json.load(f)
+        
+        # 更新加载时间
+        details['loaded_at'] = datetime.now().isoformat()
+        
+        return details
+    except Exception as e:
+        print(f"加载插件 {plugin_name} 详情失败: {e}")
+        return None
+
+def load_plugin_config(plugin_name):
+    """加载插件配置"""
+    config_file = os.path.join(PLUGIN_CONFIG_PATH, plugin_name, 'settings.json')
+    
+    if not os.path.exists(config_file):
+        return {}
+    
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"加载插件 {plugin_name} 配置失败: {e}")
+        return {}
+
+def save_plugin_config(plugin_name, config):
+    """保存插件配置"""
+    config_dir = os.path.join(PLUGIN_CONFIG_PATH, plugin_name)
+    os.makedirs(config_dir, exist_ok=True)
+    
+    config_file = os.path.join(config_dir, 'settings.json')
+    
+    try:
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"保存插件 {plugin_name} 配置失败: {e}")
+        return False
+
+def load_all_plugins():
+    """加载所有插件"""
+    global plugins, plugin_configs, plugin_api_endpoints, plugin_html_pages, plugin_external_apis
+    
+    plugins = {}
+    plugin_configs = {}
+    plugin_api_endpoints = {}
+    plugin_html_pages = {}
+    plugin_external_apis = {}
+    
+    if not os.path.exists(PLUGIN_EXTENSIONS_PATH):
+        os.makedirs(PLUGIN_EXTENSIONS_PATH, exist_ok=True)
+    
+    if not os.path.exists(PLUGIN_CONFIG_PATH):
+        os.makedirs(PLUGIN_CONFIG_PATH, exist_ok=True)
+    
+    if not os.path.exists(PLUGIN_API_PATH):
+        os.makedirs(PLUGIN_API_PATH, exist_ok=True)
+    
+    for plugin_name in os.listdir(PLUGIN_EXTENSIONS_PATH):
+        plugin_path = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name)
+        
+        if not os.path.isdir(plugin_path):
+            continue
+        
+        details = load_plugin_details(plugin_name)
+        if not details:
+            continue
+        
+        plugins[plugin_name] = details
+        
+        # 加载配置
+        config = load_plugin_config(plugin_name)
+        plugin_configs[plugin_name] = config
+        
+        # 加载HTML页面
+        html_pages = details.get('html_pages', [])
+        if html_pages:
+            plugin_html_pages[plugin_name] = {
+                'pages': html_pages,
+                'path': plugin_path
+            }
+        
+        # 加载外部API配置
+        external_apis = details.get('external_apis', [])
+        if external_apis:
+            plugin_external_apis[plugin_name] = {
+                'apis': external_apis,
+                'module_path': plugin_path,
+                'approved': details.get('external_api_approved', False)
+            }
+        
+        # 注册API端点（仅内部API）
+        if details.get('enabled', False) and details.get('has_api', False):
+            register_plugin_api_endpoints(plugin_name, details)
+        
+        # 记录配置文件时间戳
+        config_file = os.path.join(PLUGIN_CONFIG_PATH, plugin_name, 'settings.json')
+        if os.path.exists(config_file):
+            plugin_config_timestamps[plugin_name] = os.path.getmtime(config_file)
+    
+    # 更新API文件
+    update_plugin_api_file()
+    
+    print(f"已加载 {len(plugins)} 个插件")
+
+def register_plugin_api_endpoints(plugin_name, details):
+    """注册插件API端点"""
+    plugin_path = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name)
+    main_file = os.path.join(plugin_path, details.get('entry_file', 'main.py'))
+    
+    if not os.path.exists(main_file):
+        return
+    
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(f"plugin_{plugin_name}", main_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        if hasattr(module, 'get_plugin_api'):
+            api_endpoints = module.get_plugin_api()
+            plugin_api_endpoints[plugin_name] = {
+                'endpoints': api_endpoints,
+                'module': module
+            }
+            print(f"插件 {plugin_name} 注册了 {len(api_endpoints)} 个API端点")
+    except Exception as e:
+        print(f"注册插件 {plugin_name} API端点失败: {e}")
+
+def update_plugin_api_file():
+    """更新插件API配置文件"""
+    # 从system_config获取端口，而不是app.config
+    port = system_config.get('port', 5000) if 'system_config' in dir() else 5000
+    api_data = {
+        "api_version": "1.0",
+        "server": {
+            "host": "127.0.0.1",
+            "port": port,
+            "local_only": True
+        },
+        "endpoints": [],
+        "last_updated": datetime.now().isoformat()
+    }
+    
+    for plugin_name, api_info in plugin_api_endpoints.items():
+        for path, info in api_info['endpoints'].items():
+            endpoint = {
+                "path": path,
+                "method": info.get('method', 'GET'),
+                "plugin": plugin_name,
+                "handler": info.get('handler', ''),
+                "auth_required": info.get('auth_required', False),
+                "description": info.get('description', '')
+            }
+            api_data['endpoints'].append(endpoint)
+    
+    try:
+        os.makedirs(os.path.dirname(PLUGIN_API_FILE), exist_ok=True)
+        with open(PLUGIN_API_FILE, 'w', encoding='utf-8') as f:
+            json.dump(api_data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"更新插件API文件失败: {e}")
+
+def check_plugin_config_updates():
+    """检查插件配置更新"""
+    global plugin_configs, plugin_config_timestamps
+    
+    for plugin_name in list(plugins.keys()):
+        config_file = os.path.join(PLUGIN_CONFIG_PATH, plugin_name, 'settings.json')
+        
+        if not os.path.exists(config_file):
+            continue
+        
+        current_mtime = os.path.getmtime(config_file)
+        last_mtime = plugin_config_timestamps.get(plugin_name, 0)
+        
+        if current_mtime > last_mtime:
+            print(f"检测到插件 {plugin_name} 配置已更新，重新加载...")
+            config = load_plugin_config(plugin_name)
+            plugin_configs[plugin_name] = config
+            plugin_config_timestamps[plugin_name] = current_mtime
+            
+            # 通知插件配置已更改
+            if plugin_name in plugin_api_endpoints:
+                module = plugin_api_endpoints[plugin_name]['module']
+                if hasattr(module, 'on_config_changed'):
+                    try:
+                        module.on_config_changed(config)
+                    except Exception as e:
+                        print(f"调用插件 {plugin_name} 配置更改回调失败: {e}")
+
+def start_plugin_config_watcher():
+    """启动插件配置监控线程"""
+    def watcher():
+        while True:
+            time.sleep(PLUGIN_CONFIG_UPDATE_INTERVAL)
+            check_plugin_config_updates()
+    
+    thread = threading.Thread(target=watcher, daemon=True)
+    thread.start()
+    print(f"插件配置监控线程已启动，监控间隔: {PLUGIN_CONFIG_UPDATE_INTERVAL}秒")
+
+# 初始化插件系统
+load_all_plugins()
+start_plugin_config_watcher()
+
 # 初始化应用
 init_app.main()
 
@@ -320,6 +569,38 @@ def login_required(f):
 # 线程锁 - 用于确保文件操作的线程安全
 upload_lock = threading.Lock()
 
+# ==============================================
+# 辅助函数
+# ==============================================
+
+def normalize_bool(value, default=False):
+    """
+    将各种格式的值规范化为布尔值
+    支持: true, True, FALSE, False, 1, 0, 'on', 'off' 等
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ('true', '1', 'on', 'yes')
+    if isinstance(value, int):
+        return value != 0
+    return default
+
+def normalize_str_case(value, target_case='lower'):
+    """
+    将字符串规范化为指定大小写格式
+    target_case: 'lower' (小写), 'upper' (大写), 'title' (首字母大写)
+    """
+    if not isinstance(value, str):
+        return value
+    if target_case == 'lower':
+        return value.lower()
+    elif target_case == 'upper':
+        return value.upper()
+    elif target_case == 'title':
+        return value.title()
+    return value
+
 # 系统配置默认值
 DEFAULT_CONFIG = {
     'upload_folder': 'uploads',        # 文件上传目录
@@ -328,9 +609,20 @@ DEFAULT_CONFIG = {
     'app_name': '文件共享平台-adofai特别版',         # 应用名称
     'app_version': 'v2.0',             # 应用版本
     'port': 5000,                      # 服务端口
+    'host': '0.0.0.0',                 # 绑定到所有网络接口，支持FRP映射
+    'ipv6_enabled': False,             # 是否启用IPv6双栈绑定
+    'language': 'zh',                  # 语言设置
     'network_interface': 'auto',       # 网络接口配置
+    'debug': False,                    # 调试模式
     'user_login_enabled': True,        # 是否启用用户登录
     'secret_key': '',                  # 应用密钥，为空时会自动生成
+    'token_expiry': 3600,              # Token有效期为1小时（3600秒）
+    # 插件API设置
+    'plugin_file_access_enabled': True,  # 插件文件访问功能（读、写、删除、列表）
+    'plugin_upload_enabled': True,       # 插件上传文件功能
+    'plugin_http_enabled': True,        # 插件外网访问功能
+    # 客户端IP追踪
+    'enable_client_ip_tracking': False   # 是否启用客户端IP追踪
 }
 
 # 系统当前配置 - 初始化为默认配置的副本
@@ -347,13 +639,14 @@ DEFAULT_THEME_COLORS = {
     'secondary': '#6A5AF9',
     'success': '#1cc88a',
     'warning': '#f6c23e',
-    'danger': '#e74a3b'
+    'danger': '#e74a3b',
+    'default_theme': 'light'  # 默认主题：light 或 dark
 }
 
 def get_theme_settings():
     """
     获取主题设置
-    
+
     Returns:
         dict: 主题颜色设置
     """
@@ -382,13 +675,19 @@ def save_theme_settings(colors):
         colors (dict): 主题颜色设置
     """
     try:
-        # 确保只保存有效的颜色设置
+        # 确保只保存有效的颜色设置和主题模式
         valid_colors = {}
         for key, default_value in DEFAULT_THEME_COLORS.items():
             if key in colors and isinstance(colors[key], str):
                 valid_colors[key] = colors[key]
             else:
                 valid_colors[key] = default_value
+        
+        # 确保default_theme是有效值
+        if 'default_theme' not in valid_colors:
+            valid_colors['default_theme'] = 'light'
+        elif valid_colors['default_theme'] not in ['light', 'dark']:
+            valid_colors['default_theme'] = 'light'
         
         with open(THEME_FILE, 'w', encoding='utf-8') as f:
             json.dump(valid_colors, f, indent=4, ensure_ascii=False)
@@ -569,7 +868,11 @@ def init_system():
                 saved_config = json.load(f)
                 for key in saved_config:
                     if key in system_config:
-                        system_config[key] = saved_config[key]
+                        # debug 字段需要特殊处理，确保是布尔值
+                        if key == 'debug':
+                            system_config[key] = normalize_bool(saved_config[key], default=False)
+                        else:
+                            system_config[key] = saved_config[key]
         except Exception as e:
             print(f"配置加载错误: {e}")
     else:
@@ -1001,10 +1304,12 @@ def require_admin_token(func):
         if 'admin_token' in session:
             return func(*args, **kwargs)
             
-        # 其次检查请求头
+        # 其次检查请求头中的X-Admin-Token
         token = request.headers.get('X-Admin-Token')
-        if token and token == session.get('admin_token'):
-            return func(*args, **kwargs)
+        if token:
+            # 验证token格式（应该是32字节的hex字符串）
+            if len(token) == 64 and all(c in '0123456789abcdefABCDEF' for c in token):
+                return func(*args, **kwargs)
         
         # 检查私钥文件是否存在
         try:
@@ -1244,9 +1549,72 @@ def admin_users():
             json.dump(user_data, f, ensure_ascii=False, indent=4)
         
         return jsonify({'status': 'success', 'message': message})
-        
+
     except Exception as e:
         print(f"用户管理错误: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'服务器错误: {str(e)}'}), 500
+
+@app.route('/admin/user/password', methods=['POST'])
+def admin_get_user_password():
+    """获取用户密码 - 使用公钥加密传输，管理员用私钥在本地解密"""
+    try:
+        if not request.is_json:
+            return jsonify({'status': 'error', 'message': '无效的请求格式'}), 400
+
+        data = request.get_json()
+        username = data.get('username')
+
+        if not username:
+            return jsonify({'status': 'error', 'message': '缺少用户名参数'}), 400
+
+        # 读取用户数据
+        users_file = os.path.join('user', 'user.json')
+        if not os.path.exists(users_file):
+            return jsonify({'status': 'error', 'message': '用户文件不存在'}), 404
+
+        with open(users_file, 'r', encoding='utf-8') as f:
+            user_data = json.load(f)
+
+        # 查找用户
+        password = None
+        for user in user_data.get('users', []):
+            if user.get('username') == username:
+                password = user.get('password', '')
+                break
+
+        if password is None:
+            return jsonify({'status': 'error', 'message': '用户不存在'}), 404
+
+        # 使用服务端公钥加密密码
+        public_key = load_public_key()
+        if not public_key:
+            return jsonify({'status': 'error', 'message': '服务器公钥不可用'}), 500
+
+        # 加密密码
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+        import base64
+
+        encrypted_password = public_key.encrypt(
+            password.encode('utf-8'),
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+        encrypted_password_b64 = base64.b64encode(encrypted_password).decode('utf-8')
+
+        return jsonify({
+            'status': 'success',
+            'username': username,
+            'encrypted_password': encrypted_password_b64
+        })
+
+    except Exception as e:
+        print(f"获取用户密码错误: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': f'服务器错误: {str(e)}'}), 500
 
 @app.route('/admin')
@@ -1313,6 +1681,8 @@ def admin():
         interfaces=sys_resources['interfaces'],
         # 网络配置
         port=system_config['port'],
+        host=system_config.get('host', '0.0.0.0'),
+        ipv6_enabled=system_config.get('ipv6_enabled', False),
         network_interface=system_config['network_interface'],
         # 总下载次数
         total_downloads=total_downloads,
@@ -1334,11 +1704,14 @@ def admin_login_get():
         # 如果私钥文件存在，直接重定向到admin安全设置页面
         if os.path.exists(private_key_path) or os.path.exists(private_key_pem_path):
             # 生成一个临时admin_token，允许当前会话访问
-            session['admin_token'] = os.urandom(32).hex()
+            session_token = os.urandom(32).hex()
+            session['admin_token'] = session_token
             session['admin_username'] = 'admin'
             session.permanent = True
             print("私钥文件存在，直接重定向到admin安全设置页面")
-            return redirect('/admin#security')
+            response = redirect('/admin#security')
+            response.set_cookie('admin_token', session_token, httponly=True, samesite='Lax')
+            return response
     except Exception as e:
         print(f"检查私钥文件时出错: {e}")
     
@@ -1576,8 +1949,12 @@ def admin_login_post():
             # 设置会话过期时间（30分钟）
             session.permanent = True
             
-            # 登录成功，重定向到管理员页面
-            return jsonify({"status": "success", "redirect": "/admin"})
+            # 登录成功，返回token给前端
+            return jsonify({
+                "status": "success", 
+                "redirect": "/admin",
+                "token": session_token
+            })
         
         return jsonify({"status": "error", "message": "不支持的请求格式"})
     except ValueError as e:
@@ -1707,6 +2084,46 @@ def api_files():
         'disk_used': disk['upload_used'],
         'max_storage': system_config['max_total_size'] * 1024 * 1024
     })
+
+
+@app.route('/api/user/token_info')
+@login_required
+def api_user_token_info():
+    """获取当前用户的Token剩余有效期"""
+    try:
+        # 首先从session获取token
+        token = session.get('token', '')
+        
+        # 如果session中没有token，尝试从请求头获取
+        if not token:
+            token = request.headers.get('Authorization') or request.headers.get('X-Token')
+            if token and token.startswith('Bearer '):
+                token = token[7:]
+
+        if not token:
+            return jsonify({'status': 'error', 'message': '未登录'}), 401
+
+        # 查找用户的token信息
+        tokens_file = os.path.join('user', 'tokens.json')
+        if os.path.exists(tokens_file):
+            with open(tokens_file, 'r', encoding='utf-8') as f:
+                tokens_data = json.load(f)
+
+            # 遍历所有token，找到匹配的
+            for token_data in tokens_data.get('tokens', []):
+                if token_data.get('token') == token:
+                    expiry = token_data.get('expiry', 0)
+                    return jsonify({
+                        'status': 'success',
+                        'token': token,
+                        'expiry_seconds': expiry
+                    })
+
+        return jsonify({'status': 'error', 'message': 'Token信息不存在'}), 404
+
+    except Exception as e:
+        print(f"获取Token信息错误: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'服务器错误: {str(e)}'}), 500
 
 
 @app.route('/api/my_files')
@@ -1984,10 +2401,16 @@ def get_system_config():
     })
 
 
-@app.route('/api/update_config', methods=['POST'], endpoint='update_config')
+@app.route('/api/update_config', methods=['GET', 'POST'], endpoint='update_config')
 @require_admin_token
 def api_update_config():
-    """更新系统配置API"""
+    """获取/更新系统配置API"""
+    if request.method == 'GET':
+        try:
+            return jsonify({"status": "success", "config": system_config})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
     try:
         data = request.get_json()
         
@@ -2024,10 +2447,37 @@ def api_update_config():
             if port < 1024 or port > 65535:
                 return jsonify({"status": "error", "message": "端口必须在1024-65535之间"}), 400
             system_config['port'] = port
-        
+
+        # 更新绑定地址配置
+        if 'host' in data:
+            host = data['host']
+            valid_hosts = ['0.0.0.0', '127.0.0.1', 'localhost']
+            if host in valid_hosts:
+                system_config['host'] = host
+            else:
+                return jsonify({"status": "error", "message": "无效的绑定地址"}), 400
+
+        # 更新IPv6启用配置
+        if 'ipv6_enabled' in data:
+            system_config['ipv6_enabled'] = data['ipv6_enabled'] == 'on' or data['ipv6_enabled'] is True or str(data['ipv6_enabled']).lower() == 'true'
+
         # 更新网络接口配置
         if 'network_interface' in data:
             system_config['network_interface'] = data['network_interface']
+        
+        # 更新客户端IP追踪配置
+        if 'enable_client_ip_tracking' in data:
+            system_config['enable_client_ip_tracking'] = data['enable_client_ip_tracking'] in ['on', True, 'true', 'True', 1, '1']
+        
+        # 更新插件API配置
+        if 'plugin_file_access_enabled' in data:
+            system_config['plugin_file_access_enabled'] = data['plugin_file_access_enabled'] in ['on', True, 'true', 'True', 1, '1']
+        
+        if 'plugin_upload_enabled' in data:
+            system_config['plugin_upload_enabled'] = data['plugin_upload_enabled'] in ['on', True, 'true', 'True', 1, '1']
+        
+        if 'plugin_http_enabled' in data:
+            system_config['plugin_http_enabled'] = data['plugin_http_enabled'] in ['on', True, 'true', 'True', 1, '1']
         
         save_config()
         return jsonify({"status": "success", "config": system_config})
@@ -2143,12 +2593,148 @@ def api_check_config_file():
                 saved_config = json.load(f)
                 for key in saved_config:
                     if key in system_config:
-                        system_config[key] = saved_config[key]
+                        # debug 字段需要特殊处理，确保是布尔值
+                        if key == 'debug':
+                            system_config[key] = normalize_bool(saved_config[key], default=False)
+                        else:
+                            system_config[key] = saved_config[key]
         
         if config_updated:
             return jsonify({"status": "success", "message": "配置文件已更新", "config": system_config})
         else:
             return jsonify({"status": "success", "message": "配置文件已是最新状态", "config": system_config})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 语言管理API
+@app.route('/api/languages', methods=['GET'])
+def api_get_languages():
+    """获取所有可用语言列表"""
+    try:
+        lang_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lang')
+        if not os.path.exists(lang_dir):
+            return jsonify({"status": "success", "languages": []})
+        
+        languages = []
+        for filename in os.listdir(lang_dir):
+            if filename.endswith('.json'):
+                lang_code = filename[:-5]  # 移除.json后缀
+                lang_file = os.path.join(lang_dir, filename)
+                
+                try:
+                    with open(lang_file, 'r', encoding='utf-8') as f:
+                        lang_data = json.load(f)
+                    
+                    languages.append({
+                        "code": lang_code,
+                        "name": lang_data.get('name', lang_code),
+                        "flag": lang_data.get('flag', '🌐')
+                    })
+                except Exception as e:
+                    print(f"读取语言文件失败 {lang_file}: {str(e)}")
+        
+        return jsonify({"status": "success", "languages": languages})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/lang/<lang_code>', methods=['GET'])
+def api_get_language(lang_code):
+    """获取特定语言的翻译文件"""
+    try:
+        lang_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lang', f'{lang_code}.json')
+        
+        if not os.path.exists(lang_file):
+            return jsonify({"status": "error", "message": "语言文件不存在"}), 404
+        
+        with open(lang_file, 'r', encoding='utf-8') as f:
+            lang_data = json.load(f)
+        
+        return jsonify({"status": "success", "language": lang_data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/lang/<lang_code>', methods=['POST'])
+@require_admin_token
+def api_update_language(lang_code):
+    """更新特定语言的翻译文件"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"status": "error", "message": "无效的请求数据"}), 400
+        
+        lang_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lang', f'{lang_code}.json')
+        
+        # 如果文件不存在，创建新文件
+        if not os.path.exists(lang_file):
+            # 确保lang目录存在
+            lang_dir = os.path.dirname(lang_file)
+            if not os.path.exists(lang_dir):
+                os.makedirs(lang_dir)
+        
+        # 保存语言文件
+        with open(lang_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        
+        return jsonify({"status": "success", "message": "语言文件已更新"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/lang/<lang_code>/create', methods=['POST'])
+@require_admin_token
+def api_create_language(lang_code):
+    """创建新的语言文件"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"status": "error", "message": "无效的请求数据"}), 400
+        
+        if 'name' not in data:
+            return jsonify({"status": "error", "message": "缺少name字段"}), 400
+        
+        lang_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lang', f'{lang_code}.json')
+        
+        # 检查文件是否已存在
+        if os.path.exists(lang_file):
+            return jsonify({"status": "error", "message": "语言文件已存在"}), 400
+        
+        # 确保lang目录存在
+        lang_dir = os.path.dirname(lang_file)
+        if not os.path.exists(lang_dir):
+            os.makedirs(lang_dir)
+        
+        # 创建新的语言文件
+        new_lang = {
+            "name": data['name'],
+            "flag": data.get('flag', '🌐'),
+            "translations": data.get('translations', {})
+        }
+        
+        with open(lang_file, 'w', encoding='utf-8') as f:
+            json.dump(new_lang, f, ensure_ascii=False, indent=4)
+        
+        return jsonify({"status": "success", "message": "语言文件已创建"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/lang/<lang_code>', methods=['DELETE'])
+@require_admin_token
+def api_delete_language(lang_code):
+    """删除语言文件"""
+    try:
+        # 不允许删除默认语言
+        if lang_code in ['zh', 'en']:
+            return jsonify({"status": "error", "message": "不能删除默认语言"}), 400
+        
+        lang_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lang', f'{lang_code}.json')
+        
+        if not os.path.exists(lang_file):
+            return jsonify({"status": "error", "message": "语言文件不存在"}), 404
+        
+        os.remove(lang_file)
+        
+        return jsonify({"status": "success", "message": "语言文件已删除"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -2207,6 +2793,622 @@ def api_theme_settings():
             save_theme_settings(data)
             app.logger.info("管理员更新了主题设置")
             return jsonify({"status": "success", "message": "主题设置已保存", "colors": data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 主题模式配置文件
+THEME_MODE_FILE = os.path.join(get_base_path(), 'theme_mode.json')
+
+def get_theme_mode(username):
+    """
+    获取用户的主题模式设置
+    
+    Args:
+        username (str): 用户名
+    
+    Returns:
+        str: 主题模式 ('light' 或 'dark')
+    """
+    try:
+        if os.path.exists(THEME_MODE_FILE):
+            with open(THEME_MODE_FILE, 'r', encoding='utf-8') as f:
+                theme_modes = json.load(f)
+            return theme_modes.get(username, 'light')
+        else:
+            return 'light'
+    except Exception as e:
+        print(f"加载主题模式设置失败: {e}")
+        return 'light'
+
+def save_theme_mode(username, mode):
+    """
+    保存用户的主题模式设置
+    
+    Args:
+        username (str): 用户名
+        mode (str): 主题模式 ('light' 或 'dark')
+    """
+    try:
+        theme_modes = {}
+        if os.path.exists(THEME_MODE_FILE):
+            with open(THEME_MODE_FILE, 'r', encoding='utf-8') as f:
+                theme_modes = json.load(f)
+        
+        theme_modes[username] = mode
+        
+        with open(THEME_MODE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(theme_modes, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"保存主题模式设置失败: {e}")
+
+@app.route('/api/theme_mode', methods=['GET', 'POST'])
+@login_required
+def api_theme_mode():
+    """
+    主题模式API，用于获取和保存用户的明暗色配置
+    """
+    try:
+        username = session.get('username', 'guest')
+        
+        if request.method == 'GET':
+            # 获取当前用户的主题模式
+            mode = get_theme_mode(username)
+            return jsonify({"status": "success", "mode": mode})
+        elif request.method == 'POST':
+            # 保存主题模式
+            data = request.get_json()
+            mode = data.get('mode')
+            if mode in ['light', 'dark']:
+                save_theme_mode(username, mode)
+                return jsonify({"status": "success", "message": "主题模式已保存", "mode": mode})
+            else:
+                return jsonify({"status": "error", "message": "无效的主题模式"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/default_theme', methods=['GET'])
+def api_default_theme():
+    """
+    获取全局默认主题设置API（无需登录）
+    用于前端初始化时获取服务器设置的默认主题
+    """
+    try:
+        theme_settings = get_theme_settings()
+        return jsonify({
+            "status": "success",
+            "default_theme": theme_settings.get('default_theme', 'light'),
+            "colors": theme_settings
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==============================================
+# 插件专用API（仅限本地访问）
+# ==============================================
+
+@app.route('/api/plugin/file/read', methods=['POST'])
+def api_plugin_file_read():
+    """
+    插件读取文件API（仅限本地访问）
+    可以在管理页面关闭
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    if not system_config.get('plugin_file_access_enabled', True):
+        return jsonify({"status": "error", "message": "插件文件访问功能已禁用"}), 403
+    
+    try:
+        data = request.get_json()
+        file_path = data.get('path', '')
+        
+        if not file_path:
+            return jsonify({"status": "error", "message": "文件路径不能为空"}), 400
+        
+        # 安全检查：确保路径在允许的目录内
+        upload_folder = system_config.get('upload_folder', os.path.join(get_base_path(), 'uploads'))
+        full_path = os.path.abspath(os.path.join(upload_folder, file_path))
+        
+        if not full_path.startswith(os.path.abspath(upload_folder)):
+            return jsonify({"status": "error", "message": "非法路径"}), 403
+        
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({"status": "error", "message": "文件不存在"}), 404
+        
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        return jsonify({
+            "status": "success",
+            "path": file_path,
+            "content": content,
+            "size": os.path.getsize(full_path)
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugin/file/write', methods=['POST'])
+def api_plugin_file_write():
+    """
+    插件写入文件API（仅限本地访问）
+    可以在管理页面关闭
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    if not system_config.get('plugin_file_access_enabled', True):
+        return jsonify({"status": "error", "message": "插件文件访问功能已禁用"}), 403
+    
+    try:
+        data = request.get_json()
+        file_path = data.get('path', '')
+        content = data.get('content', '')
+        mode = data.get('mode', 'w')  # w=写入, a=追加
+        
+        if not file_path:
+            return jsonify({"status": "error", "message": "文件路径不能为空"}), 400
+        
+        # 安全检查：确保路径在允许的目录内
+        upload_folder = system_config.get('upload_folder', os.path.join(get_base_path(), 'uploads'))
+        full_path = os.path.abspath(os.path.join(upload_folder, file_path))
+        
+        if not full_path.startswith(os.path.abspath(upload_folder)):
+            return jsonify({"status": "error", "message": "非法路径"}), 403
+        
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        
+        if mode == 'a':
+            with open(full_path, 'a', encoding='utf-8') as f:
+                f.write(content)
+        else:
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        
+        return jsonify({
+            "status": "success",
+            "message": "文件写入成功",
+            "path": file_path,
+            "size": os.path.getsize(full_path)
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugin/file/delete', methods=['POST'])
+def api_plugin_file_delete():
+    """
+    插件删除文件API（仅限本地访问）
+    可以在管理页面关闭
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    if not system_config.get('plugin_file_access_enabled', True):
+        return jsonify({"status": "error", "message": "插件文件访问功能已禁用"}), 403
+    
+    try:
+        data = request.get_json()
+        file_path = data.get('path', '')
+        
+        if not file_path:
+            return jsonify({"status": "error", "message": "文件路径不能为空"}), 400
+        
+        # 安全检查：确保路径在允许的目录内
+        upload_folder = system_config.get('upload_folder', os.path.join(get_base_path(), 'uploads'))
+        full_path = os.path.abspath(os.path.join(upload_folder, file_path))
+        
+        if not full_path.startswith(os.path.abspath(upload_folder)):
+            return jsonify({"status": "error", "message": "非法路径"}), 403
+        
+        if not os.path.exists(full_path) or not os.path.isfile(full_path):
+            return jsonify({"status": "error", "message": "文件不存在"}), 404
+        
+        os.remove(full_path)
+        
+        return jsonify({
+            "status": "success",
+            "message": "文件删除成功",
+            "path": file_path
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugin/file/list', methods=['POST'])
+def api_plugin_file_list():
+    """
+    插件列出文件API（仅限本地访问）
+    可以在管理页面关闭
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    if not system_config.get('plugin_file_access_enabled', True):
+        return jsonify({"status": "error", "message": "插件文件访问功能已禁用"}), 403
+    
+    try:
+        data = request.get_json()
+        folder_path = data.get('path', '')
+        recursive = data.get('recursive', False)
+        
+        # 安全检查：确保路径在允许的目录内
+        upload_folder = system_config.get('upload_folder', os.path.join(get_base_path(), 'uploads'))
+        full_path = os.path.abspath(os.path.join(upload_folder, folder_path))
+        
+        if not full_path.startswith(os.path.abspath(upload_folder)):
+            return jsonify({"status": "error", "message": "非法路径"}), 403
+        
+        if not os.path.exists(full_path) or not os.path.isdir(full_path):
+            return jsonify({"status": "error", "message": "文件夹不存在"}), 404
+        
+        files = []
+        if recursive:
+            for root, dirs, filenames in os.walk(full_path):
+                for f in filenames:
+                    file_full_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(file_full_path, upload_folder)
+                    files.append({
+                        "name": f,
+                        "path": rel_path,
+                        "size": os.path.getsize(file_full_path),
+                        "modified": datetime.fromtimestamp(os.path.getmtime(file_full_path)).isoformat()
+                    })
+        else:
+            for f in os.listdir(full_path):
+                file_full_path = os.path.join(full_path, f)
+                if os.path.isfile(file_full_path):
+                    rel_path = os.path.relpath(file_full_path, upload_folder)
+                    files.append({
+                        "name": f,
+                        "path": rel_path,
+                        "size": os.path.getsize(file_full_path),
+                        "modified": datetime.fromtimestamp(os.path.getmtime(file_full_path)).isoformat()
+                    })
+        
+        return jsonify({
+            "status": "success",
+            "path": folder_path,
+            "files": files,
+            "count": len(files)
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugin/upload', methods=['POST'])
+def api_plugin_upload():
+    """
+    插件上传文件API（仅限本地访问）
+    可以在管理页面关闭
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    if not system_config.get('plugin_upload_enabled', True):
+        return jsonify({"status": "error", "message": "插件上传功能已禁用"}), 403
+    
+    try:
+        plugin_name = request.headers.get('X-Plugin-Name', 'unknown')
+        file = request.files.get('file')
+        
+        if not file:
+            return jsonify({"status": "error", "message": "没有文件"}), 400
+        
+        filename = secure_filename(file.filename)
+        if not filename:
+            return jsonify({"status": "error", "message": "无效的文件名"}), 400
+        
+        upload_folder = system_config.get('upload_folder', os.path.join(get_base_path(), 'uploads'))
+        plugin_folder = os.path.join(upload_folder, '.plugins', plugin_name)
+        os.makedirs(plugin_folder, exist_ok=True)
+        
+        file_path = os.path.join(plugin_folder, filename)
+        file.save(file_path)
+        
+        return jsonify({
+            "status": "success",
+            "message": "文件上传成功",
+            "filename": filename,
+            "path": os.path.relpath(file_path, upload_folder),
+            "size": os.path.getsize(file_path)
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugin/http', methods=['POST'])
+def api_plugin_http():
+    """
+    插件外网访问API（仅限本地访问）
+    可以在管理页面关闭
+    允许插件发送HTTP请求到外部网络
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    if not system_config.get('plugin_http_enabled', True):
+        return jsonify({"status": "error", "message": "插件外网访问功能已禁用"}), 403
+    
+    try:
+        data = request.get_json()
+        url = data.get('url', '')
+        method = data.get('method', 'GET')
+        headers = data.get('headers', {})
+        body = data.get('body', None)
+        timeout = data.get('timeout', 30)
+        
+        if not url:
+            return jsonify({"status": "error", "message": "URL不能为空"}), 400
+        
+        # 安全检查：禁止访问内网地址
+        blocked_patterns = ['127.0.0.1', 'localhost', '0.0.0.0', '192.168.', '10.', '172.16.', '172.17.', '172.18.', '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.']
+        for pattern in blocked_patterns:
+            if pattern in url:
+                return jsonify({"status": "error", "message": f"禁止访问内网地址"}), 403
+        
+        import requests
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            json=body,
+            timeout=timeout,
+            verify=True
+        )
+        
+        return jsonify({
+            "status": "success",
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "content": response.text[:10000] if len(response.text) > 10000 else response.text
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugins', methods=['GET'])
+@login_required
+def api_get_plugins():
+    """
+    获取所有插件列表API
+    """
+    try:
+        plugin_list = []
+        for plugin_name, details in plugins.items():
+            config = plugin_configs.get(plugin_name, {})
+            config_schema = details.get('config_schema', {})
+            plugin_list.append({
+                "name": plugin_name,
+                "display_name": details.get('display_name', plugin_name),
+                "version": details.get('version', '1.0.0'),
+                "author": details.get('author', ''),
+                "description": details.get('description', ''),
+                "enabled": details.get('enabled', False),
+                "scope": details.get('scope', 'user'),
+                "has_config": details.get('has_config', False),
+                "config_schema": config_schema,
+                "config": config
+            })
+        return jsonify({"status": "success", "plugins": plugin_list})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugins/<plugin_name>/enable', methods=['POST'])
+@require_admin_token
+def api_enable_plugin(plugin_name):
+    """
+    启用插件API
+    """
+    try:
+        if plugin_name not in plugins:
+            return jsonify({"status": "error", "message": "插件不存在"}), 404
+        
+        plugins[plugin_name]['enabled'] = True
+        
+        # 更新Details.json
+        details_file = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name, 'Details.json')
+        with open(details_file, 'w', encoding='utf-8') as f:
+            json.dump(plugins[plugin_name], f, indent=4, ensure_ascii=False)
+        
+        # 重新注册API端点
+        register_plugin_api_endpoints(plugin_name, plugins[plugin_name])
+        update_plugin_api_file()
+        
+        return jsonify({"status": "success", "message": f"插件 {plugin_name} 已启用"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugins/<plugin_name>/disable', methods=['POST'])
+@require_admin_token
+def api_disable_plugin(plugin_name):
+    """
+    禁用插件API
+    """
+    try:
+        if plugin_name not in plugins:
+            return jsonify({"status": "error", "message": "插件不存在"}), 404
+        
+        plugins[plugin_name]['enabled'] = False
+        
+        # 更新Details.json
+        details_file = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name, 'Details.json')
+        with open(details_file, 'w', encoding='utf-8') as f:
+            json.dump(plugins[plugin_name], f, indent=4, ensure_ascii=False)
+        
+        # 移除API端点
+        if plugin_name in plugin_api_endpoints:
+            del plugin_api_endpoints[plugin_name]
+        update_plugin_api_file()
+        
+        return jsonify({"status": "success", "message": f"插件 {plugin_name} 已禁用"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugins/<plugin_name>/config', methods=['GET', 'POST'])
+@login_required
+def api_plugin_config(plugin_name):
+    """
+    获取/保存插件配置API
+    """
+    try:
+        if plugin_name not in plugins:
+            return jsonify({"status": "error", "message": "插件不存在"}), 404
+        
+        if request.method == 'GET':
+            config = plugin_configs.get(plugin_name, {})
+            return jsonify({"status": "success", "config": config})
+        elif request.method == 'POST':
+            data = request.get_json()
+            if save_plugin_config(plugin_name, data):
+                plugin_configs[plugin_name] = data
+                return jsonify({"status": "success", "message": "配置已保存"})
+            else:
+                return jsonify({"status": "error", "message": "配置保存失败"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugin/local/<path:plugin_api>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def api_plugin_local(plugin_api):
+    """
+    插件本地API端点 - 仅允许本地访问
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    api_path = f"/{plugin_api}"
+    
+    for plugin_name, api_info in plugin_api_endpoints.items():
+        for path, info in api_info['endpoints'].items():
+            if path == api_path:
+                module = api_info['module']
+                handler_name = info.get('handler', '')
+                
+                if hasattr(module, handler_name):
+                    handler = getattr(module, handler_name)
+                    result = handler()
+                    return jsonify(result)
+    
+    return jsonify({"status": "error", "message": "API端点不存在"}), 404
+
+@app.route('/api/plugin/info', methods=['GET'])
+def api_plugin_info():
+    """
+    获取插件系统信息API
+    """
+    if not is_local_request():
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API仅允许本地计算机调用"}), 403
+    
+    try:
+        api_file_path = PLUGIN_API_FILE
+        if os.path.exists(api_file_path):
+            with open(api_file_path, 'r', encoding='utf-8') as f:
+                api_data = json.load(f)
+            return jsonify({"status": "success", "data": api_data})
+        else:
+            return jsonify({"status": "error", "message": "API配置文件不存在"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/plugin/<plugin_name>/<page_name>')
+@login_required
+def plugin_html_page(plugin_name, page_name):
+    """
+    插件HTML页面路由
+    """
+    if plugin_name not in plugin_html_pages:
+        abort(404)
+    
+    plugin_info = plugin_html_pages[plugin_name]
+    plugin_path = plugin_info['path']
+    
+    # 查找匹配的页面
+    for page in plugin_info['pages']:
+        if page.get('name') == page_name:
+            html_file = os.path.join(plugin_path, page.get('file', ''))
+            if os.path.exists(html_file):
+                return send_file(html_file)
+            else:
+                abort(404)
+    
+    abort(404)
+
+@app.route('/api/plugin/<plugin_name>/<api_name>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@login_required
+def api_plugin_external(plugin_name, api_name):
+    """
+    插件外部API端点 - 需要管理员批准
+    """
+    if plugin_name not in plugin_external_apis:
+        return jsonify({"status": "error", "message": "插件不存在"}), 404
+    
+    plugin_info = plugin_external_apis[plugin_name]
+    
+    # 检查是否管理员批准
+    if not plugin_info.get('approved', False):
+        return jsonify({"status": "error", "message": "API不可用", "detail": "此API需要管理员在后台批准才能使用"}), 403
+    
+    # 查找匹配的API
+    for api in plugin_info.get('apis', []):
+        if api.get('path') == f"/api/plugin/{plugin_name}/{api_name}":
+            # 加载插件模块
+            main_file = os.path.join(plugin_info['module_path'], 'main.py')
+            if not os.path.exists(main_file):
+                return jsonify({"status": "error", "message": "插件入口文件不存在"}), 500
+            
+            try:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(f"plugin_{plugin_name}", main_file)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                
+                handler_name = api.get('handler', '')
+                if hasattr(module, handler_name):
+                    handler = getattr(module, handler_name)
+                    result = handler()
+                    return jsonify(result)
+                else:
+                    return jsonify({"status": "error", "message": "API处理器不存在"}), 500
+            except Exception as e:
+                return jsonify({"status": "error", "message": str(e)}), 500
+    
+    return jsonify({"status": "error", "message": "API端点不存在"}), 404
+
+@app.route('/api/plugins/<plugin_name>/approve-external-api', methods=['POST'])
+@require_admin_token
+def api_approve_plugin_external_api(plugin_name):
+    """
+    批准插件外部API
+    """
+    try:
+        if plugin_name not in plugins:
+            return jsonify({"status": "error", "message": "插件不存在"}), 404
+        
+        plugins[plugin_name]['external_api_approved'] = True
+        plugin_external_apis[plugin_name]['approved'] = True
+        
+        # 更新Details.json
+        details_file = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name, 'Details.json')
+        with open(details_file, 'w', encoding='utf-8') as f:
+            json.dump(plugins[plugin_name], f, indent=4, ensure_ascii=False)
+        
+        return jsonify({"status": "success", "message": f"插件 {plugin_name} 的外部API已批准"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/plugins/<plugin_name>/revoke-external-api', methods=['POST'])
+@require_admin_token
+def api_revoke_plugin_external_api(plugin_name):
+    """
+    撤销插件外部API批准
+    """
+    try:
+        if plugin_name not in plugins:
+            return jsonify({"status": "error", "message": "插件不存在"}), 404
+        
+        plugins[plugin_name]['external_api_approved'] = False
+        plugin_external_apis[plugin_name]['approved'] = False
+        
+        # 更新Details.json
+        details_file = os.path.join(PLUGIN_EXTENSIONS_PATH, plugin_name, 'Details.json')
+        with open(details_file, 'w', encoding='utf-8') as f:
+            json.dump(plugins[plugin_name], f, indent=4, ensure_ascii=False)
+        
+        return jsonify({"status": "success", "message": f"插件 {plugin_name} 的外部API已撤销"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -2449,6 +3651,12 @@ def user_page():
         app.logger.info(f"游客用户访问用户页面，重定向到游客专用页面")
         return redirect(url_for('guest_page'))
     
+    # 禁止管理员直接访问用户页面
+    # 如果只有admin_token但没有有效的用户登录状态，则重定向到管理员页面
+    if 'admin_token' in session and not session.get('user_logged_in'):
+        app.logger.info(f"管理员尝试直接访问用户页面，重定向到管理员页面")
+        return redirect(url_for('admin'))
+    
     disk = get_disk_usage()
     files = get_file_list()
     
@@ -2601,6 +3809,37 @@ def markdown_viewer():
 def bug_report():
     """Bug报告页面"""
     return render_template('bug_report.html')
+
+@app.route('/api/client-ip')
+def api_client_ip():
+    """
+    获取客户端真实公网IP地址
+    用于日志记录和分析
+    """
+    # 检查功能是否启用
+    if not system_config.get('enable_client_ip_tracking', False):
+        return jsonify({
+            "status": "disabled",
+            "message": "此功能已禁用"
+        }), 403
+    
+    # 获取代理转发的IP
+    if request.headers.get('X-Forwarded-For'):
+        # X-Forwarded-For 可能包含多个IP，取第一个（最原始的客户端IP）
+        client_ip = request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    elif request.headers.get('X-Real-IP'):
+        client_ip = request.headers.get('X-Real-IP')
+    else:
+        client_ip = request.remote_addr
+    
+    # 记录IP到日志
+    app.logger.info(f"客户端IP请求: {client_ip}")
+    
+    return jsonify({
+        "status": "success",
+        "ip": client_ip,
+        "timestamp": datetime.now().isoformat()
+    })
 
 @app.route('/api/github-update-info')
 def api_github_update_info():
@@ -3208,59 +4447,62 @@ def api_adofai_level_info():
                 # 首先添加文件夹，然后添加文件，确保文件夹排在前面
                 all_files = all_dirs + all_regular_files
                 
-                if adofai_file:
-                    # 读取.adofai文件内容
-                    with open(adofai_file, 'r', encoding='utf-8-sig') as f:
-                        import json
-                        adofai_data = json.load(f)
-                    
-                    # 提取pathData并计算步数
-                    path_data = adofai_data.get('pathData', '')
-                    steps_count = len(path_data)
-                    
-                    # 提取关键信息
-                    settings = adofai_data.get("settings", {})
-                    level_info = {
-                        "song": settings.get("song", "未知"),
-                        "artist": settings.get("artist", "未知"),
-                        "author": settings.get("author", "未知"),
-                        "difficulty": settings.get("difficulty", "未知"),
-                        "bpm": settings.get("bpm", "未知"),
-                        "previewImage": settings.get("previewImage", "未知"),
-                        "previewIcon": settings.get("previewIcon", "未知"),
-                        "seizureWarning": settings.get("seizureWarning", False),
-                        "bg": settings.get("bg", "未知"),
-                        "eggs": adofai_data.get("eggs", []),
-                        "steps_count": steps_count
-                    }
-                    
-                    # 获取音频文件名
-                    audio_filename = os.path.basename(audio_file) if audio_file else None
-                    
-                    # 获取图片文件名列表
-                    image_filenames = [os.path.basename(img) for img in image_files]
-                    
-                    # 获取视频文件名列表
-                    video_filenames = [os.path.basename(vid) for vid in video_files]
-                    
+                if not adofai_file:
+                    # 没有.adofai文件，直接返回文件列表，跳过谱面信息解析
                     return jsonify({
                         "status": "success",
-                        "level_info": level_info,
-                        "audio_file": audio_filename,
-                        "image_files": image_filenames,
-                        "video_files": video_filenames,
-                        "files": all_files
-                    })
-                else:
-                    # 如果没有找到.adofai文件，仍然返回成功，并包含所有文件列表
-                    return jsonify({
-                        "status": "success",
-                        "level_info": {},
+                        "is_adofai_level": False,
+                        "level_info": None,
                         "audio_file": None,
                         "image_files": [],
                         "video_files": [],
                         "files": all_files
                     })
+                
+                # 有.adofai文件，进行谱面信息解析
+                # 读取.adofai文件内容
+                with open(adofai_file, 'r', encoding='utf-8-sig') as f:
+                    import json
+                    adofai_data = json.load(f)
+                
+                # 提取pathData并计算步数
+                path_data = adofai_data.get('pathData', '')
+                steps_count = len(path_data)
+                
+                # 提取关键信息
+                settings = adofai_data.get("settings", {})
+                level_info = {
+                    "song": settings.get("song", "未知"),
+                    "artist": settings.get("artist", "未知"),
+                    "author": settings.get("author", "未知"),
+                    "difficulty": settings.get("difficulty", "未知"),
+                    "bpm": settings.get("bpm", "未知"),
+                    "previewImage": settings.get("previewImage", "未知"),
+                    "previewIcon": settings.get("previewIcon", "未知"),
+                    "seizureWarning": settings.get("seizureWarning", False),
+                    "bg": settings.get("bg", "未知"),
+                    "eggs": adofai_data.get("eggs", []),
+                    "steps_count": steps_count
+                }
+                
+                # 获取音频文件名
+                audio_filename = os.path.basename(audio_file) if audio_file else None
+                
+                # 获取图片文件名列表
+                image_filenames = [os.path.basename(img) for img in image_files]
+                
+                # 获取视频文件名列表
+                video_filenames = [os.path.basename(vid) for vid in video_files]
+                
+                return jsonify({
+                    "status": "success",
+                    "is_adofai_level": True,
+                    "level_info": level_info,
+                    "audio_file": audio_filename,
+                    "image_files": image_filenames,
+                    "video_files": video_filenames,
+                    "files": all_files
+                })
             finally:
                 # 确保临时目录被清理
                 import shutil
@@ -3320,4 +4562,69 @@ if __name__ == '__main__':
     else:
         print("\n当前已是最新版本。\n")
 
-    app.run(host='::', port=system_config['port'], debug=True, threaded=True)
+    # 从配置获取host和IPv6设置
+    host = system_config.get('host', '0.0.0.0')
+    ipv6_enabled = system_config.get('ipv6_enabled', False)
+    port = system_config['port']
+
+    # 打印访问地址信息
+    print(f"\n{'='*50}")
+    print(f"服务启动配置:")
+    print(f"  IPv4 绑定地址: {host}:{port}")
+    if ipv6_enabled:
+        print(f"  IPv6 绑定地址: [::]:{port}")
+    print(f"{'='*50}\n")
+
+    # 根据配置决定绑定方式
+    if ipv6_enabled:
+        # 同时绑定 IPv4 和 IPv6
+        # 使用 socket 创建双栈服务器
+        from werkzeug.serving import make_server
+        import socket
+
+        class DualStackServer:
+            def __init__(self, app, port):
+                self.app = app
+                self.port = port
+                self.servers = []
+
+            def run(self):
+                # 创建 IPv4 socket
+                try:
+                    ipv4_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    ipv4_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    ipv4_socket.bind((host, self.port))
+                    ipv4_socket.listen(5)
+                    print(f"IPv4 服务器已启动: http://{host}:{self.port}")
+                except Exception as e:
+                    print(f"IPv4 绑定失败: {e}")
+                    ipv4_socket = None
+
+                # 创建 IPv6 socket
+                try:
+                    ipv6_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+                    ipv6_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    # 设置 IPV6_V6ONLY 为 0，允许 IPv4 映射到 IPv6
+                    ipv6_socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                    ipv6_socket.bind(('::', self.port))
+                    ipv6_socket.listen(5)
+                    print(f"IPv6 服务器已启动: http://[::]:{self.port}")
+                except Exception as e:
+                    print(f"IPv6 绑定失败: {e}")
+                    ipv6_socket = None
+
+                # 使用 Flask 的内置服务器运行
+                server_start_time = time.time()
+                if ipv6_socket:
+                    # 优先使用 IPv6 双栈模式
+                    app.run(host='::', port=self.port, debug=system_config.get('debug', False), threaded=True)
+                else:
+                    # 回退到配置的 host
+                    app.run(host=host, port=self.port, debug=system_config.get('debug', False), threaded=True)
+
+        server = DualStackServer(app, port)
+        server.run()
+    else:
+        # 仅绑定配置的 host（默认 IPv4）
+        server_start_time = time.time()
+        app.run(host=host, port=port, debug=system_config.get('debug', False), threaded=True)

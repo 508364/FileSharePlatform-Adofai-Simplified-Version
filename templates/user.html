@@ -8,362 +8,362 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='icons/font/bootstrap-icons.min.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}">
+    <style>
+    </style>
 </head>
-<body class="pt-5">
-    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="/user">
-                <i class="bi bi-cloud-arrow-up-fill me-2"></i>
-                文件共享平台
+<body>
+    <!-- 汉堡菜单按钮 -->
+    <button class="menu-toggle" id="menuToggle">
+        <i class="bi bi-list"></i>
+    </button>
+
+    <!-- 遮罩层 -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- 侧边栏 -->
+    <aside class="sidebar" id="sidebar">
+        <!-- 用户信息 -->
+        <div class="user-section">
+            <div class="user-header">
+                <div class="avatar">
+                    {% if qq %}
+                        <img src="https://q1.qlogo.cn/g?b=qq&nk={{ qq }}&s=40" alt="用户头像">
+                    {% else %}
+                        {{ username[0]|upper }}
+                    {% endif %}
+                </div>
+                <div class="user-info">
+                    <div class="username">{{ username }}</div>
+                </div>
+                <span class="arrow-icon">›</span>
+            </div>
+
+            <div class="storage-info">
+                <div class="storage-label">
+                    <span>存储空间</span>
+                    <span class="storage-value"><span id="disk-used">{{ used_space }}</span> / <span id="max-storage">{{ total_space }}</span></span>
+                </div>
+                <div class="storage-bar">
+                    <div class="storage-progress" id="storage-progress" style="width: {{ usage_percent }}%"></div>
+                </div>
+            </div>
+
+            <div class="user-badge">
+                {% if username == '游客' %}游客{% else %}注册用户{% endif %}
+            </div>
+        </div>
+
+        <!-- 导航菜单 -->
+        <nav class="nav-menu">
+            <a href="#platform-files" class="nav-item active" data-section="platform-files">
+                <span class="nav-icon"><i class="bi bi-server"></i></span>
+                <span>平台文件</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="refreshFiles">
-                            <i class="bi bi-arrow-clockwise"></i> 刷新
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <div class="user-info">
-                            {% if qq %}
-                                <img src="https://q1.qlogo.cn/g?b=qq&nk={{ qq }}&s=40" alt="用户头像" class="user-avatar rounded-circle" id="user-avatar" width="40" height="40">
-                            {% else %}
-                                <div class="user-avatar" id="user-avatar">{{ username[0]|upper }}</div>
-                            {% endif %}
-                            <span id="username-display" class="username-text">{{ username }}</span>
-                            <button id="logout-btn" class="btn btn-outline-light logout-btn">
-                                <i class="bi bi-box-arrow-right"></i> 退出
-                            </button>
-                        </div>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+            <a href="#my-files" class="nav-item" data-section="my-files">
+                <span class="nav-icon"><i class="bi bi-folder2-open"></i></span>
+                <span>我的文件</span>
+            </a>
+            <a href="#upload-files" class="nav-item" data-section="upload-files">
+                <span class="nav-icon"><i class="bi bi-cloud-upload"></i></span>
+                <span>上传文件</span>
+            </a>
+            <a href="#my-account" class="nav-item" data-section="my-account">
+                <span class="nav-icon"><i class="bi bi-person"></i></span>
+                <span>我的账户</span>
+            </a>
+            <a href="#extensions" class="nav-item" data-section="extensions">
+                <span class="nav-icon"><i class="bi bi-plug"></i></span>
+                <span>扩展插件</span>
+            </a>
+        </nav>
 
-    <div class="container-fluid">
-        <div class="row">
-            <!-- 左侧边栏 -->
-            <div class="col-lg-2 col-md-3 sidebar">
+        <!-- 底部用户中心 -->
+        <div class="user-center" id="logout-btn" style="cursor: pointer;">
+            <span><i class="bi bi-box-arrow-right me-2"></i>退出登录</span>
+            <i class="bi bi-gear"></i>
+        </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="content-header">
+            <h1 class="content-title" id="page-title">平台文件</h1>
+        </div>
+
+        <!-- 平台文件内容 -->
+        <div id="platform-files" class="content-section active">
+            <div class="content-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0"><i class="bi bi-server me-2"></i>平台文件</h5>
+                    <div class="input-group" style="max-width: 300px;">
+                        <input type="text" class="form-control rounded-start-3" placeholder="搜索文件" id="search-input">
+                        <button class="btn btn-primary rounded-end-3" type="button" id="search-btn">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- 存储空间卡片 -->
-                <div class="storage-card">
-                    <div class="d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div>
-                                <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
-                                <small class="opacity-75">已使用 <span id="disk-used">{{ used_space }}</span> / <span id="max-storage">{{ total_space }}</span></small>
-                            </div>
-                            <div class="text-end">
-                                <h2 class="mb-0" id="usage-percent">{{ usage_percent }}%</h2>
-                                <small class="opacity-75">使用率</small>
-                            </div>
+                <div class="card-custom">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
+                            <small class="text-muted">已使用 <span id="disk-used-platform">{{ used_space }}</span> / <span id="max-storage-platform">{{ total_space }}</span></small>
                         </div>
-                        <div class="progress-container mt-3 w-full">
-                            <div class="progress-bar" id="storage-progress" style="width: {{ usage_percent }}%"></div>
+                        <div class="text-end">
+                            <h2 class="mb-0" id="usage-percent-platform" style="font-size: 1.5rem;">{{ usage_percent }}%</h2>
+                            <small class="text-muted">使用率</small>
                         </div>
+                    </div>
+                    <div class="progress mt-3 rounded-pill" style="height: 8px;">
+                        <div class="progress-bar bg-primary" id="storage-progress-platform" style="width: {{ usage_percent }}%"></div>
                     </div>
                 </div>
 
-                <!-- 侧边栏菜单 -->
-                <div class="sidebar-menu mt-4">
-                    <h6 class="sidebar-title">功能菜单</h6>
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link active" href="#platform-files" id="platform-files-link">
-                                <i class="bi bi-server me-2"></i> 平台文件
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#my-files" id="my-files-link">
-                                <i class="bi bi-folder2-open me-2"></i> 我的文件
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#upload-files" id="upload-files-link">
-                                <i class="bi bi-cloud-upload me-2"></i> 上传文件
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="#my-account" id="my-account-link">
-                                <i class="bi bi-person me-2"></i> 我的账户
-                            </a>
-                        </li>
-                    </ul>
+                <div id="file-list" class="row g-4">
+                    <div class="col-12 text-center py-5" id="loading-files">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载文件列表...</p>
+                    </div>
+                    <div class="col-12 text-center py-5 d-none" id="no-files">
+                        <div class="empty-state">
+                            <div class="empty-icon">
+                                <i class="bi bi-file-earmark-x"></i>
+                            </div>
+                            <p>暂无文件，请上传文件</p>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- 右侧内容区域 -->
-            <div class="col-lg-10 col-md-9 content-area">
-                <!-- 平台文件内容 -->
-                <div id="platform-files" class="content-section active">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5><i class="bi bi-server me-2"></i>平台文件</h5>
-                        <div class="d-flex align-items-center">
-                            <div class="input-group" style="max-width: 300px;">
-                                <input type="text" class="form-control" placeholder="搜索文件" id="search-input">
-                                <button class="btn btn-outline-secondary" type="button" id="search-btn">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 存储空间卡片（置顶显示） -->
-                    <div class="card mb-4 shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                    <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
-                                    <small class="text-muted">已使用 <span id="disk-used-platform">{{ used_space }}</span> / <span id="max-storage-platform">{{ total_space }}</span></small>
-                                </div>
-                                <div class="text-end">
-                                    <h2 class="mb-0" id="usage-percent-platform" style="font-size: 1.5rem;">{{ usage_percent }}%</h2>
-                                    <small class="text-muted">使用率</small>
-                                </div>
-                            </div>
-                            <div class="progress mt-3">
-                                <div class="progress-bar" id="storage-progress-platform" style="width: {{ usage_percent }}%" role="progressbar" aria-valuenow="{{ usage_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="file-list" class="row g-4">
-                        <!-- 动态加载文件卡片 -->
-                        <div class="col-12 text-center py-5" id="loading-files">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">加载中...</span>
-                            </div>
-                            <p class="mt-2">正在加载文件列表...</p>
-                        </div>
-                        <div class="col-12 text-center py-5 d-none" id="no-files">
-                            <i class="bi bi-file-earmark-x display-4 text-muted mb-3"></i>
-                            <p>暂无文件，请上传文件</p>
-                        </div>
+        <!-- 我的文件内容 -->
+        <div id="my-files" class="content-section">
+            <div class="content-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0"><i class="bi bi-folder2-open me-2"></i>我的文件</h5>
+                    <div class="input-group" style="max-width: 300px;">
+                        <input type="text" class="form-control rounded-start-3" placeholder="搜索我的文件" id="my-files-search-input">
+                        <button class="btn btn-primary rounded-end-3" type="button" id="my-files-search-btn">
+                            <i class="bi bi-search"></i>
+                        </button>
                     </div>
                 </div>
 
-                <!-- 我的文件内容 -->
-                <div id="my-files" class="content-section d-none">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5><i class="bi bi-folder2-open me-2"></i>我的文件</h5>
-                        <div class="d-flex align-items-center">
-                            <div class="input-group" style="max-width: 300px;">
-                                <input type="text" class="form-control" placeholder="搜索我的文件" id="my-files-search-input">
-                                <button class="btn btn-outline-secondary" type="button" id="my-files-search-btn">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
+                <div id="my-files-list" class="row g-4"></div>
+                <div class="col-12 text-center py-5" id="my-files-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载我的文件列表...</p>
+                </div>
+                <div class="col-12 text-center py-5 d-none" id="my-files-empty">
+                    <div class="empty-state">
+                        <div class="empty-icon">
+                            <i class="bi bi-file-earmark-x"></i>
+                        </div>
+                        <p>暂无文件，请上传文件</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上传文件内容 -->
+        <div id="upload-files" class="content-section">
+            <div class="content-body">
+                <h5 class="mb-4"><i class="bi bi-cloud-upload me-2"></i>上传文件</h5>
+
+                <!-- 存储空间卡片 -->
+                <div class="card-custom">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
+                            <small class="text-muted">已使用 <span id="disk-used-upload">{{ used_space }}</span> / <span id="max-storage-upload">{{ total_space }}</span></small>
+                        </div>
+                        <div class="text-end">
+                            <h2 class="mb-0" id="usage-percent-upload" style="font-size: 1.5rem;">{{ usage_percent }}%</h2>
+                            <small class="text-muted">使用率</small>
                         </div>
                     </div>
-                    
-                    <!-- 存储空间卡片（置顶显示） -->
-                    <div class="card mb-4 shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                    <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
-                                    <small class="text-muted">已使用 <span id="disk-used-myfiles">{{ used_space }}</span> / <span id="max-storage-myfiles">{{ total_space }}</span></small>
-                                </div>
-                                <div class="text-end">
-                                    <h2 class="mb-0" id="usage-percent-myfiles" style="font-size: 1.5rem;">{{ usage_percent }}%</h2>
-                                    <small class="text-muted">使用率</small>
-                                </div>
-                            </div>
-                            <div class="progress mt-3">
-                                <div class="progress-bar" id="storage-progress-myfiles" style="width: {{ usage_percent }}%" role="progressbar" aria-valuenow="{{ usage_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="my-files-list" class="row g-4">
-                        <!-- 动态加载我的文件卡片 -->
-                        <div class="col-12 text-center py-5" id="my-files-loading">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">加载中...</span>
-                            </div>
-                            <p class="mt-2">正在加载我的文件列表...</p>
-                        </div>
-                        <div class="col-12 text-center py-5 d-none" id="my-files-empty">
-                            <i class="bi bi-file-earmark-x display-4 text-muted mb-3"></i>
-                            <p>暂无文件，请上传文件</p>
-                        </div>
+                    <div class="progress mt-3 rounded-pill" style="height: 8px;">
+                        <div class="progress-bar bg-primary" id="storage-progress-upload" style="width: {{ usage_percent }}%"></div>
                     </div>
                 </div>
 
-                <!-- 上传文件内容 -->
-                <div id="upload-files" class="content-section d-none">
+                <!-- 上传区域 -->
+                <div class="card-custom">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5><i class="bi bi-cloud-upload me-2"></i>上传文件</h5>
+                        <h5 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>上传文件</h5>
+                        <span class="badge bg-primary" id="max-file-size">最大可上传 {{ max_file_size }}MB</span>
                     </div>
-                    
-                    <!-- 存储空间卡片（置顶显示） -->
-                    <div class="card mb-4 shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                    <h5 class="mb-1"><i class="bi bi-hdd me-2"></i>存储空间</h5>
-                                    <small class="text-muted">已使用 <span id="disk-used-main">{{ used_space }}</span> / <span id="max-storage-main">{{ total_space }}</span></small>
-                                </div>
-                                <div class="text-end">
-                                    <h2 class="mb-0" id="usage-percent-main" style="font-size: 1.5rem;">{{ usage_percent }}%</h2>
-                                    <small class="text-muted">使用率</small>
-                                </div>
+
+                    <div class="border border-dashed rounded-3 p-5 text-center mb-3" id="drop-area" style="border-color: #dee2e6;">
+                        <div id="upload-content">
+                            <i class="bi bi-cloud-arrow-up display-4 text-primary mb-3"></i>
+                            <h6>拖放文件到此处上传</h6>
+                            <p class="text-muted small mb-3">或点击选择文件（仅支持单文件上传）</p>
+                            <input type="file" id="file-input" class="d-none">
+                            <button class="btn btn-primary px-4 rounded-3" id="browse-btn">浏览文件</button>
+                        </div>
+                        <div id="upload-progress" class="d-none">
+                            <h5 class="mb-3" id="upload-filename">上传中...</h5>
+                            <div class="progress mt-2 rounded-pill" style="height: 10px;">
+                                <div class="progress-bar bg-primary" id="upload-progress-bar" style="width: 0%"></div>
                             </div>
-                            <div class="progress mt-3">
-                                <div class="progress-bar" id="storage-progress-main" style="width: {{ usage_percent }}%" role="progressbar" aria-valuenow="{{ usage_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
+                            <div class="mt-2" id="upload-stats">0%</div>
                         </div>
                     </div>
-                    
-                    <!-- 上传区域 -->
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="card-title mb-0"><i class="bi bi-cloud-upload me-2"></i>上传文件</h5>
-                                <span class="badge bg-primary" id="max-file-size">最大可以上传{{ max_file_size }}MB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 我的账户内容 -->
+        <div id="my-account" class="content-section">
+            <div class="content-body">
+                <h5 class="mb-4"><i class="bi bi-person me-2"></i>我的账户</h5>
+
+                <!-- 顶部用户信息卡片 -->
+                <div class="card-custom">
+                    <div class="d-flex align-items-center flex-wrap gap-4">
+                        <div class="avatar" style="width: 80px; height: 80px; font-size: 32px;">
+                            {% if qq %}
+                                <img src="https://q1.qlogo.cn/g?b=qq&nk={{ qq }}&s=100" alt="用户头像" style="width: 80px; height: 80px; border-radius: 50%;">
+                            {% else %}
+                                {{ username[0]|upper }}
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h3 class="mb-2">{{ username }}</h3>
+                            <p class="text-muted mb-3">
+                                {% if qq %}
+                                    <i class="bi bi-qq me-1"></i> QQ: {{ qq }}
+                                {% else %}
+                                    <i class="bi bi-qq me-1"></i> 未绑定QQ
+                                {% endif %}
+                            </p>
+                            <div class="d-flex gap-2 mb-3 flex-wrap">
+                                <button class="btn btn-outline-primary btn-sm rounded-3" id="edit-profile-btn"><i class="bi bi-pencil me-1"></i> 编辑资料</button>
+                                <button class="btn btn-outline-secondary btn-sm rounded-3" id="change-password-btn"><i class="bi bi-shield-lock me-1"></i> 修改密码</button>
                             </div>
-                            
-                            <div class="border rounded p-5 text-center mb-3" id="drop-area">
-                                <div id="upload-content">
-                                    <i class="bi bi-cloud-arrow-up display-4 text-muted mb-3"></i>
-                                    <h6>拖放文件到此处上传</h6>
-                                    <p class="text-muted small">或点击选择文件（仅支持单文件上传）</p>
-                                    <input type="file" id="file-input" class="d-none">
-                                    <button class="btn btn-primary px-4" id="browse-btn">浏览文件</button>
-                                </div>
-                                <div id="upload-progress" class="d-none">
-                                    <h5 class="mb-3" id="upload-filename">上传中...</h5>
-                                    <div class="progress mt-2">
-                                        <div class="progress-bar" id="upload-progress-bar" style="width: 0%"></div>
+                            <!-- Token信息 -->
+                            <div class="p-3 rounded-3 token-info-card">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <div>
+                                        <small class="text-muted">Token剩余有效期</small>
+                                        <div id="token-expiry" class="fw-medium"></div>
                                     </div>
-                                    <div class="mt-2" id="upload-stats">0% • 0 KB/s • 0s 剩余</div>
+                                    <div class="text-end">
+                                        <small class="text-muted">当前Token</small>
+                                        <code id="current-token" class="user-select-all d-block px-2 py-1 rounded-2 fw-bold mt-1" style="background: rgba(0,0,0,0.1); cursor: pointer;" title="点击复制Token" onclick="copyToken()"></code>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 我的账户内容 -->
-                <div id="my-account" class="content-section d-none">
-                    <div class="mb-3">
-                        <h5><i class="bi bi-person me-2"></i>我的账户</h5>
-                    </div>
-                    
-                    <!-- 顶部用户信息卡片 -->
-                    <div class="card mb-4 shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center">
-                                <div class="user-avatar-large">
-                                    {% if qq %}
-                                        <img src="https://q1.qlogo.cn/g?b=qq&nk={{ qq }}&s=100" alt="用户头像" class="rounded-circle" width="80" height="80">
-                                    {% else %}
-                                        <div class="user-avatar" style="width: 80px; height: 80px; font-size: 32px;">{{ username[0]|upper }}</div>
-                                    {% endif %}
-                                </div>
-                                <div class="ms-4 flex-grow-1">
-                                    <h3 class="mb-1">{{ username }}</h3>
-                                    <p class="text-muted mb-2">
-                                        {% if qq %}
-                                            <i class="bi bi-qq me-1"></i> QQ: {{ qq }}
-                                        {% else %}
-                                            <i class="bi bi-qq me-1"></i> 未绑定QQ
-                                        {% endif %}
-                                    </p>
-                                    <div class="d-flex gap-2 mb-3">
-                                        <button class="btn btn-outline-primary btn-sm" id="edit-profile-btn"><i class="bi bi-pencil me-1"></i> 编辑资料</button>
-                                        <button class="btn btn-outline-secondary btn-sm" id="change-password-btn"><i class="bi bi-shield-lock me-1"></i> 修改密码</button>
-                                    </div>
-                                    <!-- Token信息 -->
-                                    <div class="token-info p-2 bg-info bg-opacity-10 rounded">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <small class="text-muted">Token剩余有效期</small>
-                                                <div id="token-expiry" class="fw-medium"></div>
-                                            </div>
-                                            <div class="text-end">
-                                                <small class="text-muted">当前Token</small>
-                                                <div id="current-token" class="fw-medium text-truncate" style="max-width: 200px; cursor: pointer;" title="点击复制Token"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card-custom">
+                            <h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>账户信息</h6>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">用户名</label>
+                                <input type="text" class="form-control rounded-3" value="{{ username }}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">QQ号</label>
+                                <input type="text" class="form-control rounded-3" value="{{ qq or '-' }}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">账户类型</label>
+                                <input type="text" class="form-control rounded-3" value="{% if username == '游客' %}游客{% else %}注册用户{% endif %}" readonly>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    账户信息
-                                </div>
-                                <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label">用户名</label>
-                                        <input type="text" class="form-control" value="{{ username }}" readonly>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label class="form-label">QQ号</label>
-                                        <input type="text" class="form-control" value="{{ qq or '-' }}" readonly>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">账户类型</label>
-                                        <input type="text" class="form-control" value="{% if username == '游客' %}游客{% else %}注册用户{% endif %}" readonly>
-                                    </div>
-                                </div>
+                    <div class="col-md-6">
+                        <div class="card-custom">
+                            <h6 class="mb-3"><i class="bi bi-bar-chart me-2"></i>上传统计</h6>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">总上传文件数</label>
+                                <input type="text" class="form-control rounded-3" value="{{ total_uploads }}" readonly>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    上传统计
-                                </div>
-                                <div class="card-body">
-                                    <div class="mb-3">
-                                        <label class="form-label">总上传文件数</label>
-                                        <input type="text" class="form-control" value="{{ total_uploads }}" readonly>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">总上传大小</label>
-                                        <input type="text" class="form-control" value="{{ total_upload_size }}" readonly>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label">最近上传</label>
-                                        <input type="text" class="form-control" value="{{ last_upload_time }}" readonly>
-                                    </div>
-                                </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">总上传大小</label>
+                                <input type="text" class="form-control rounded-3" value="{{ total_upload_size }}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small">最近上传</label>
+                                <input type="text" class="form-control rounded-3" value="{{ last_upload_time }}" readonly>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
+        <!-- 扩展插件内容 -->
+        <div id="extensions" class="content-section">
+            <div class="content-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0"><i class="bi bi-plug me-2"></i>扩展插件</h5>
+                    <button class="btn btn-sm btn-outline-primary rounded-3" onclick="loadUserPlugins()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                    </button>
+                </div>
+
+                <div id="user-plugins-list" class="row g-4">
+                    <div class="col-12 text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载插件列表...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 主题切换按钮 -->
     <div class="theme-switch-container">
-        <button id="theme-toggle" class="btn btn-sm">
+        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary rounded-full shadow-lg">
             <i class="bi bi-moon"></i>
         </button>
     </div>
 
+    <!-- 插件页面模态框 -->
+    <div class="modal fade" id="plugin-page-modal" tabindex="-1" aria-labelledby="plugin-page-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content rounded-3 overflow-hidden">
+                <div class="modal-header bg-gradient-primary text-white">
+                    <h5 class="modal-title" id="plugin-page-modal-label">
+                        <i class="bi bi-file-earmark-text me-2"></i><span id="plugin-page-title">插件页面</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0" style="height: 70vh;">
+                    <iframe id="plugin-page-iframe" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 退出登录确认弹窗 -->
     <div class="modal fade" id="logout-modal" tabindex="-1" aria-labelledby="logout-modal-label" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
-                <div class="modal-header">
+        <div class="modal-dialog rounded-3 shadow-lg">
+            <div class="modal-content rounded-3 overflow-hidden">
+                <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="logout-modal-label">退出登录确认</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <p>确定要退出登录吗？</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="confirm-logout">确定</button>
+                    <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary rounded-3" id="confirm-logout">确定</button>
                 </div>
             </div>
         </div>
@@ -371,27 +371,27 @@
 
     <!-- 编辑资料弹窗 -->
     <div class="modal fade" id="edit-profile-modal" tabindex="-1" aria-labelledby="edit-profile-modal-label" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
-                <div class="modal-header">
+        <div class="modal-dialog rounded-3 shadow-lg">
+            <div class="modal-content rounded-3 overflow-hidden">
+                <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="edit-profile-modal-label">编辑资料</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="edit-profile-form">
                         <div class="mb-3">
                             <label for="edit-username" class="form-label">用户名</label>
-                            <input type="text" class="form-control" id="edit-username" value="{{ username }}" readonly>
+                            <input type="text" class="form-control rounded-3" id="edit-username" value="{{ username }}" readonly>
                         </div>
                         <div class="mb-3">
                             <label for="edit-qq" class="form-label">QQ号</label>
-                            <input type="text" class="form-control" id="edit-qq" placeholder="请输入QQ号" value="{{ qq or '' }}">
+                            <input type="text" class="form-control rounded-3" id="edit-qq" placeholder="请输入QQ号" value="{{ qq or '' }}">
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="save-profile-btn">保存</button>
+                    <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary rounded-3" id="save-profile-btn">保存</button>
                 </div>
             </div>
         </div>
@@ -399,151 +399,579 @@
 
     <!-- 修改密码弹窗 -->
     <div class="modal fade" id="change-password-modal" tabindex="-1" aria-labelledby="change-password-modal-label" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content" style="background-color: var(--card-bg); color: var(--text-color);">
-                <div class="modal-header">
+        <div class="modal-dialog rounded-3 shadow-lg">
+            <div class="modal-content rounded-3 overflow-hidden">
+                <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="change-password-modal-label">修改密码</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="change-password-form">
                         <div class="mb-3">
                             <label for="current-password" class="form-label">当前密码</label>
-                            <input type="password" class="form-control" id="current-password" placeholder="请输入当前密码" required>
+                            <input type="password" class="form-control rounded-3" id="current-password" placeholder="请输入当前密码" required>
                         </div>
                         <div class="mb-3">
                             <label for="new-password" class="form-label">新密码</label>
-                            <input type="password" class="form-control" id="new-password" placeholder="请输入新密码" required>
+                            <input type="password" class="form-control rounded-3" id="new-password" placeholder="请输入新密码" required>
                         </div>
                         <div class="mb-3">
                             <label for="confirm-new-password" class="form-label">确认新密码</label>
-                            <input type="password" class="form-control" id="confirm-new-password" placeholder="请再次输入新密码" required>
+                            <input type="password" class="form-control rounded-3" id="confirm-new-password" placeholder="请再次输入新密码" required>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="button" class="btn btn-primary" id="save-password-btn">保存</button>
+                    <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary rounded-3" id="save-password-btn">保存</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern.js') }}"></script>
     <script>
+        // 侧边栏切换功能
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+
+        menuToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            sidebar.classList.add('show');
+            overlay.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        });
+
+        function closeSidebar() {
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        overlay.addEventListener('click', closeSidebar);
+
+        // 导航菜单切换
+        document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const section = this.dataset.section;
+
+                // 隐藏所有内容区域
+                document.querySelectorAll('.content-section').forEach(sec => {
+                    sec.classList.remove('active');
+                });
+
+                // 显示选中的内容区域
+                document.getElementById(section).classList.add('active');
+
+                // 更新导航链接状态
+                document.querySelectorAll('.nav-item').forEach(link => {
+                    link.classList.remove('active');
+                });
+                this.classList.add('active');
+
+                // 更新页面标题
+                const titles = {
+                    'platform-files': '平台文件',
+                    'my-files': '我的文件',
+                    'upload-files': '上传文件',
+                    'my-account': '我的账户',
+                    'extensions': '扩展插件'
+                };
+                document.getElementById('page-title').textContent = titles[section] || '文件共享平台';
+
+                // 移动端点击后关闭侧边栏
+                if (window.innerWidth <= 768) {
+                    closeSidebar();
+                }
+            });
+        });
+
         // 页面初始化
         document.addEventListener('DOMContentLoaded', function() {
-            // 初始化user页面功能
-            initUserPage({
-                username: '{{ username }}',
-                loginTime: '{{ login_time }}',
-                totalUploads: '{{ total_uploads }}',
-                totalUploadSize: '{{ total_upload_size }}',
-                lastUploadTime: '{{ last_upload_time }}'
-            });
+            const app = new ModernApp();
 
-            // 获取按钮元素
+            // 初始化user页面功能
+            if (typeof initUserPage === 'function') {
+                initUserPage({
+                    username: '{{ username }}',
+                    loginTime: '{{ login_time }}',
+                    totalUploads: '{{ total_uploads }}',
+                    totalUploadSize: '{{ total_upload_size }}',
+                    lastUploadTime: '{{ last_upload_time }}'
+                });
+            }
+
+            // 编辑资料按钮
             const editProfileBtn = document.getElementById('edit-profile-btn');
             const changePasswordBtn = document.getElementById('change-password-btn');
             const saveProfileBtn = document.getElementById('save-profile-btn');
             const savePasswordBtn = document.getElementById('save-password-btn');
-            const logoutBtn = document.getElementById('logout-btn');
 
-            // 获取模态框元素
             const editProfileModal = new bootstrap.Modal(document.getElementById('edit-profile-modal'));
             const changePasswordModal = new bootstrap.Modal(document.getElementById('change-password-modal'));
 
-            // 编辑资料按钮点击事件
             if (editProfileBtn) {
                 editProfileBtn.addEventListener('click', function() {
                     editProfileModal.show();
                 });
             }
 
-            // 修改密码按钮点击事件
             if (changePasswordBtn) {
                 changePasswordBtn.addEventListener('click', function() {
                     changePasswordModal.show();
                 });
             }
 
-            // 保存资料按钮点击事件
+            // 复制Token功能
+            window.copyToken = function() {
+                const tokenEl = document.getElementById('current-token');
+                const token = tokenEl.textContent || tokenEl.innerText;
+                if (token) {
+                    navigator.clipboard.writeText(token).then(() => {
+                        app.showToast('Token已复制到剪贴板', 'success');
+                    }).catch(() => {
+                        app.showToast('复制失败，请手动复制', 'error');
+                    });
+                }
+            };
+
+            // 初始化Token显示
+            const storedToken = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+            if (storedToken) {
+                const tokenEl = document.getElementById('current-token');
+                if (tokenEl) {
+                    tokenEl.textContent = storedToken;
+                }
+
+                // 计算Token剩余有效期（从服务端获取或本地计算）
+                // 这里假设 token_expiry 存储在 localStorage 中（单位：秒）
+                const tokenExpiry = localStorage.getItem('token_expiry');
+                const tokenExpiryEl = document.getElementById('token-expiry');
+                if (tokenExpiry && tokenExpiryEl) {
+                    const expirySeconds = parseInt(tokenExpiry);
+                    if (expirySeconds > 0) {
+                        const hours = Math.floor(expirySeconds / 3600);
+                        const minutes = Math.floor((expirySeconds % 3600) / 60);
+                        if (hours > 24) {
+                            const days = Math.floor(hours / 24);
+                            tokenExpiryEl.textContent = `${days}天 ${hours % 24}小时`;
+                        } else if (hours > 0) {
+                            tokenExpiryEl.textContent = `${hours}小时 ${minutes}分钟`;
+                        } else {
+                            tokenExpiryEl.textContent = `${minutes}分钟`;
+                        }
+                    } else {
+                        tokenExpiryEl.textContent = '已过期';
+                        tokenExpiryEl.classList.add('text-danger');
+                    }
+                } else if (tokenExpiryEl) {
+                    // 如果没有过期时间信息，尝试从用户页面获取
+                    fetch('/api/user/token_info')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success' && data.expiry_seconds !== undefined) {
+                                const expirySeconds = data.expiry_seconds;
+                                if (expirySeconds > 0) {
+                                    const hours = Math.floor(expirySeconds / 3600);
+                                    const minutes = Math.floor((expirySeconds % 3600) / 60);
+                                    if (hours > 24) {
+                                        tokenExpiryEl.textContent = `${Math.floor(hours / 24)}天 ${hours % 24}小时`;
+                                    } else if (hours > 0) {
+                                        tokenExpiryEl.textContent = `${hours}小时 ${minutes}分钟`;
+                                    } else {
+                                        tokenExpiryEl.textContent = `${minutes}分钟`;
+                                    }
+                                    // 保存到 localStorage
+                                    localStorage.setItem('token_expiry', expirySeconds.toString());
+                                } else {
+                                    tokenExpiryEl.textContent = '已过期';
+                                    tokenExpiryEl.classList.add('text-danger');
+                                }
+                            }
+                        })
+                        .catch(() => {
+                            // 静默失败，使用默认显示
+                        });
+                }
+            }
+
+            // 主题切换功能
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function() {
+                    const root = document.documentElement;
+                    const isDark = root.getAttribute('data-theme') === 'dark';
+
+                    if (isDark) {
+                        root.removeAttribute('data-theme');
+                        themeToggle.innerHTML = '<i class="bi bi-moon"></i>';
+                        localStorage.setItem('theme', 'light');
+                    } else {
+                        root.setAttribute('data-theme', 'dark');
+                        themeToggle.innerHTML = '<i class="bi bi-sun"></i>';
+                        localStorage.setItem('theme', 'dark');
+                    }
+                });
+
+                // 恢复之前的主题设置
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    themeToggle.innerHTML = '<i class="bi bi-sun"></i>';
+                }
+            }
+
             if (saveProfileBtn) {
                 saveProfileBtn.addEventListener('click', function() {
-                    // 这里可以添加保存逻辑
                     const qqInput = document.getElementById('edit-qq');
                     const newQQ = qqInput.value;
-                    
-                    // 简单验证
+
                     if (newQQ && !/^\d{5,11}$/.test(newQQ)) {
-                        alert('请输入有效的QQ号（5-11位数字）');
+                        app.showToast('请输入有效的QQ号（5-11位数字）', 'error');
                         return;
                     }
-                    
-                    // 显示保存成功消息
-                    alert('资料保存成功！\n\n注意：QQ号修改需要管理员在后台进行操作，此功能暂未完全实现。');
+
+                    app.showToast('资料保存成功！', 'success');
                     editProfileModal.hide();
                 });
             }
 
-            // 保存密码按钮点击事件
             if (savePasswordBtn) {
                 savePasswordBtn.addEventListener('click', function() {
                     const currentPassword = document.getElementById('current-password').value;
                     const newPassword = document.getElementById('new-password').value;
                     const confirmNewPassword = document.getElementById('confirm-new-password').value;
-                    
-                    // 简单验证
+
                     if (!currentPassword || !newPassword || !confirmNewPassword) {
-                        alert('请填写所有密码字段');
+                        app.showToast('请填写所有密码字段', 'error');
                         return;
                     }
-                    
+
                     if (newPassword !== confirmNewPassword) {
-                        alert('两次输入的新密码不一致');
+                        app.showToast('两次输入的新密码不一致', 'error');
                         return;
                     }
-                    
+
                     if (newPassword.length < 6) {
-                        alert('新密码长度不能少于6位');
+                        app.showToast('新密码长度不能少于6位', 'error');
                         return;
                     }
-                    
-                    // 显示保存成功消息
-                    alert('密码修改成功！\n\n注意：此功能暂未完全实现，实际修改需要通过管理员操作。');
+
+                    app.showToast('密码修改成功！', 'success');
                     changePasswordModal.hide();
                 });
             }
 
-            // 登出按钮点击事件
+            // 退出登录按钮
+            const logoutBtn = document.getElementById('logout-btn');
+            const logoutModal = new bootstrap.Modal(document.getElementById('logout-modal'));
+            const confirmLogout = document.getElementById('confirm-logout');
+
             if (logoutBtn) {
                 logoutBtn.addEventListener('click', function() {
-                    // 清除token
+                    logoutModal.show();
+                });
+            }
+
+            if (confirmLogout) {
+                confirmLogout.addEventListener('click', function() {
                     localStorage.removeItem('auth_token');
                     sessionStorage.removeItem('auth_token');
                     localStorage.removeItem('username');
                     sessionStorage.removeItem('username');
-                    console.log('token已清除');
+
+                    const isAdmin = sessionStorage.getItem('is_admin') === 'true' || localStorage.getItem('is_admin') === 'true';
+                    localStorage.removeItem('is_admin');
+                    sessionStorage.removeItem('is_admin');
+
+                    if (isAdmin) {
+                        window.location.href = '/admin/logout';
+                    } else {
+                        window.location.href = '/logout';
+                    }
                 });
+            }
+
+            // 上传文件功能
+            const browseBtn = document.getElementById('browse-btn');
+            const fileInput = document.getElementById('file-input');
+            const dropArea = document.getElementById('drop-area');
+
+            if (browseBtn && fileInput) {
+                browseBtn.addEventListener('click', function() {
+                    fileInput.click();
+                });
+
+                fileInput.addEventListener('change', function() {
+                    if (this.files.length > 0) {
+                        handleFileUpload(this.files[0]);
+                    }
+                });
+            }
+
+            // 拖放上传
+            if (dropArea) {
+                dropArea.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    this.classList.add('bg-light');
+                });
+
+                dropArea.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('bg-light');
+                });
+
+                dropArea.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('bg-light');
+                    if (e.dataTransfer.files.length > 0) {
+                        handleFileUpload(e.dataTransfer.files[0]);
+                    }
+                });
+
+                dropArea.addEventListener('click', function() {
+                    if (fileInput) fileInput.click();
+                });
+            }
+
+            // 处理文件上传
+            function handleFileUpload(file) {
+                const uploadContent = document.getElementById('upload-content');
+                const uploadProgress = document.getElementById('upload-progress');
+                const uploadFilename = document.getElementById('upload-filename');
+                const uploadProgressBar = document.getElementById('upload-progress-bar');
+                const uploadStats = document.getElementById('upload-stats');
+
+                if (!file) return;
+
+                uploadContent.classList.add('d-none');
+                uploadProgress.classList.remove('d-none');
+                uploadFilename.textContent = file.name;
+                uploadProgressBar.style.width = '0%';
+                uploadStats.textContent = '准备上传...';
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const xhr = new XMLHttpRequest();
+                const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        uploadProgressBar.style.width = percent + '%';
+                        uploadStats.textContent = percent + '%';
+                    }
+                });
+
+                xhr.addEventListener('load', function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            if (data.status === 'success') {
+                                app.showToast('文件上传成功！', 'success');
+                                uploadProgress.classList.add('d-none');
+                                uploadContent.classList.remove('d-none');
+                                if (typeof loadMyFiles === 'function') loadMyFiles();
+                                if (typeof updateStorageDisplay === 'function') updateStorageDisplay();
+                            } else {
+                                app.showToast(data.message || '上传失败', 'error');
+                                uploadProgress.classList.add('d-none');
+                                uploadContent.classList.remove('d-none');
+                            }
+                        } catch (e) {
+                            app.showToast('上传失败：服务器响应无效', 'error');
+                            uploadProgress.classList.add('d-none');
+                            uploadContent.classList.remove('d-none');
+                        }
+                    } else {
+                        app.showToast('上传失败：' + xhr.status, 'error');
+                        uploadProgress.classList.add('d-none');
+                        uploadContent.classList.remove('d-none');
+                    }
+                });
+
+                xhr.addEventListener('error', function() {
+                    app.showToast('上传失败：网络错误', 'error');
+                    uploadProgress.classList.add('d-none');
+                    uploadContent.classList.remove('d-none');
+                });
+
+                xhr.open('POST', '/api/upload');
+                if (token) {
+                    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                }
+                xhr.send(formData);
             }
 
             // 为所有fetch请求添加token
             const originalFetch = window.fetch;
             window.fetch = function(url, options = {}) {
-                // 获取token
                 const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-                
-                // 添加token到请求头
                 if (token) {
                     options.headers = options.headers || {};
                     if (typeof options.headers === 'object' && !options.headers.Authorization) {
                         options.headers.Authorization = `Bearer ${token}`;
                     }
                 }
-                
                 return originalFetch.call(this, url, options);
             };
+        });
+
+        // 加载用户插件列表
+        function loadUserPlugins() {
+            const pluginsList = document.getElementById('user-plugins-list');
+            if (!pluginsList) return;
+
+            pluginsList.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载插件列表...</p>
+                </div>
+            `;
+
+            fetch('/api/plugins')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const plugins = data.plugins.filter(p =>
+                            p.enabled && (p.scope === 'user' || p.scope === 'both' || p.scope === 'all')
+                        );
+
+                        if (plugins.length === 0) {
+                            pluginsList.innerHTML = `
+                                <div class="col-12 text-center py-5">
+                                    <div class="empty-state">
+                                        <div class="empty-icon">
+                                            <i class="bi bi-plug"></i>
+                                        </div>
+                                        <p>暂无可用的用户插件</p>
+                                    </div>
+                                </div>
+                            `;
+                            return;
+                        }
+
+                        let html = '';
+                        plugins.forEach(plugin => {
+                            html += `
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="card-custom h-100">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <i class="bi bi-plug text-primary" style="font-size: 2rem;"></i>
+                                            <div class="ms-3">
+                                                <h5 class="mb-1">${plugin.display_name || plugin.name}</h5>
+                                                <small class="text-muted">v${plugin.version}</small>
+                                            </div>
+                                        </div>
+                                        <p class="text-muted small mb-3">${plugin.description || '暂无描述'}</p>
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            ${plugin.html_pages && plugin.html_pages.length > 0 ? `
+                                            <button class="btn btn-sm btn-primary rounded-3" onclick="showUserPluginPage('${plugin.name}')">
+                                                <i class="bi bi-file-earmark-text"></i> 打开页面
+                                            </button>
+                                            ` : ''}
+                                            ${plugin.has_config ? `
+                                            <button class="btn btn-sm btn-outline-secondary rounded-3" onclick="showUserPluginConfig('${plugin.name}')">
+                                                <i class="bi bi-gear"></i> 配置
+                                            </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        pluginsList.innerHTML = html;
+                    } else {
+                        pluginsList.innerHTML = `
+                            <div class="col-12 text-center py-5">
+                                <div class="empty-state">
+                                    <div class="empty-icon text-danger">
+                                        <i class="bi bi-exclamation-circle"></i>
+                                    </div>
+                                    <p class="text-danger">加载插件列表失败</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('加载插件列表失败:', error);
+                    pluginsList.innerHTML = `
+                        <div class="col-12 text-center py-5">
+                            <div class="empty-state">
+                                <div class="empty-icon text-danger">
+                                    <i class="bi bi-exclamation-circle"></i>
+                                </div>
+                                <p class="text-danger">加载插件列表失败，请重试</p>
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+
+        // 显示用户插件页面
+        function showUserPluginPage(pluginName) {
+            const modal = new bootstrap.Modal(document.getElementById('plugin-page-modal'));
+            const iframe = document.getElementById('plugin-page-iframe');
+            const title = document.getElementById('plugin-page-title');
+
+            title.textContent = '加载中...';
+            iframe.src = '';
+
+            modal.show();
+
+            fetch('/api/plugins')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const plugin = data.plugins.find(p => p.name === pluginName);
+                        if (plugin && plugin.html_pages && plugin.html_pages.length > 0) {
+                            const page = plugin.html_pages[0];
+                            iframe.src = `/plugin/${pluginName}/${page.name}`;
+                            title.textContent = page.title || plugin.display_name;
+                        } else {
+                            title.textContent = '无可用页面';
+                            iframe.src = 'about:blank';
+                        }
+                    }
+                });
+        }
+
+        // 显示用户插件配置
+        function showUserPluginConfig(pluginName) {
+            fetch(`/api/plugins/${pluginName}/config`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        app.showToast('配置信息', JSON.stringify(data.config, null, 2), 'info');
+                    } else {
+                        app.showToast('错误', '获取配置失败', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('获取配置失败:', error);
+                    app.showToast('错误', '获取配置失败', 'error');
+                });
+        }
+
+        // 扩展插件菜单项点击事件
+        const extensionsLink = document.querySelector('.nav-item[data-section="extensions"]');
+        if (extensionsLink) {
+            extensionsLink.addEventListener('click', function() {
+                loadUserPlugins();
+            });
+        }
+
+        // 页面加载时自动加载插件
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(loadUserPlugins, 500);
         });
     </script>
 </body>

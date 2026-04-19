@@ -1,0 +1,88 @@
+{
+    "name": "example_plugin",
+    "display_name": "示例插件",
+    "version": "1.0.0",
+    "author": "系统管理员",
+    "author_email": "admin@example.com",
+    "description": "这是一个示例插件，用于演示插件系统的工作原理。",
+    "description_link": "https://example.com/plugin/readme",
+    "entry_file": "main.py",
+    "has_config": true,
+    "config_file": "settings.json",
+    "scope": "user",
+    "requires": [],
+    "api_version": "1.0",
+    "min_server_version": "1.0.0",
+    "enabled": false,
+    "loaded_at": "2026-04-11T20:58:41.423860",
+    "html_pages": [
+        {
+            "name": "example",
+            "file": "example.html",
+            "title": "示例插件页面",
+            "description": "这是示例插件的HTML页面"
+        }
+    ],
+    "external_apis": [
+        {
+            "path": "/api/plugin/example/external",
+            "method": "GET",
+            "handler": "get_external_info",
+            "description": "外部API端点示例",
+            "auth_required": true,
+            "admin_approved": false
+        }
+    ],
+    "config_schema": {
+        "api_enabled": {
+            "type": "boolean",
+            "label": "启用API",
+            "description": "是否启用插件的API功能",
+            "default": true
+        },
+        "option1": {
+            "type": "string",
+            "label": "选项1",
+            "description": "第一个配置选项",
+            "default": "value1"
+        },
+        "option2": {
+            "type": "boolean",
+            "label": "选项2",
+            "description": "第二个配置选项（布尔值）",
+            "default": true
+        },
+        "option3": {
+            "type": "number",
+            "label": "选项3",
+            "description": "第三个配置选项（数字）",
+            "default": 100,
+            "min": 0,
+            "max": 1000
+        },
+        "debug_mode": {
+            "type": "select",
+            "label": "调试模式",
+            "description": "选择调试级别",
+            "default": "info",
+            "options": [
+                {
+                    "value": "debug",
+                    "label": "调试"
+                },
+                {
+                    "value": "info",
+                    "label": "信息"
+                },
+                {
+                    "value": "warning",
+                    "label": "警告"
+                },
+                {
+                    "value": "error",
+                    "label": "错误"
+                }
+            ]
+        }
+    }
+}

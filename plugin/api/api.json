@@ -1,0 +1,10 @@
+{
+    "api_version": "1.0",
+    "server": {
+        "host": "127.0.0.1",
+        "port": 5000,
+        "local_only": true
+    },
+    "endpoints": [],
+    "last_updated": "2026-04-17T18:27:25.512313"
+}

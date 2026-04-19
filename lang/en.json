@@ -1,0 +1,112 @@
+{
+  "app": {
+    "name": "File Sharing Platform",
+    "version": "2.0",
+    "description": "Secure and efficient file storage and sharing platform"
+  },
+  "nav": {
+    "home": "Home",
+    "files": "File Management",
+    "upload": "Upload File",
+    "settings": "Settings",
+    "admin": "Admin Panel",
+    "logout": "Logout",
+    "login": "Login",
+    "register": "Register"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "loading": "Loading...",
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
+    "confirm": "Confirm",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "reset": "Reset",
+    "refresh": "Refresh"
+  },
+  "file": {
+    "name": "File Name",
+    "size": "Size",
+    "type": "Type",
+    "modified": "Modified Time",
+    "created": "Created Time",
+    "download": "Download",
+    "upload": "Upload",
+    "delete": "Delete",
+    "rename": "Rename",
+    "move": "Move",
+    "copy": "Copy",
+    "share": "Share",
+    "preview": "Preview",
+    "details": "Details",
+    "noFiles": "No files available",
+    "dragDrop": "Drag and drop files here or click to upload",
+    "uploadSuccess": "File uploaded successfully",
+    "uploadError": "File upload failed",
+    "deleteConfirm": "Are you sure you want to delete this file?",
+    "downloadCount": "Download Count"
+  },
+  "user": {
+    "username": "Username",
+    "password": "Password",
+    "email": "Email",
+    "qq": "QQ Number",
+    "avatar": "Avatar",
+    "role": "Role",
+    "status": "Status",
+    "lastLogin": "Last Login",
+    "createdAt": "Created At",
+    "guest": "Guest",
+    "admin": "Administrator",
+    "user": "User"
+  },
+  "theme": {
+    "light": "Light Mode",
+    "dark": "Dark Mode",
+    "auto": "Follow System",
+    "primary": "Primary Color",
+    "secondary": "Secondary Color",
+    "success": "Success Color",
+    "warning": "Warning Color",
+    "danger": "Danger Color",
+    "info": "Info Color"
+  },
+  "system": {
+    "serverVersion": "Server Version",
+    "availableSpace": "Available Space",
+    "totalFiles": "Total Files",
+    "systemInfo": "System Information",
+    "diskUsage": "Disk Usage",
+    "memoryUsage": "Memory Usage",
+    "cpuUsage": "CPU Usage"
+  },
+  "error": {
+    "404": "Page Not Found",
+    "500": "Internal Server Error",
+    "unauthorized": "Unauthorized Access",
+    "forbidden": "Forbidden Access",
+    "networkError": "Network Error",
+    "timeout": "Request Timeout",
+    "unknownError": "Unknown Error"
+  },
+  "guest": {
+    "title": "Guest Access",
+    "description": "You are currently accessing as a guest",
+    "permissions": "Guest Permissions",
+    "canView": "View platform file list",
+    "canDownload": "Download platform files",
+    "cannotUpload": "Upload files to platform",
+    "cannotManage": "Manage personal files"
+  }
+}

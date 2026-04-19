@@ -6,8 +6,134 @@
     <title>文件详情 - 文件共享平台</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='icons/font/bootstrap-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modern.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- 引入marked.js和highlight.js用于Markdown渲染 -->
+    <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/highlight.min.js') }}"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
+    
+    <style>
+        /* Markdown内容样式 */
+        .markdown-content h1, 
+        .markdown-content h2, 
+        .markdown-content h3, 
+        .markdown-content h4, 
+        .markdown-content h5, 
+        .markdown-content h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .markdown-content h1 {
+            font-size: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.3em;
+        }
+        
+        .markdown-content h3 {
+            font-size: 1.25rem;
+        }
+        
+        .markdown-content p {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .markdown-content a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .markdown-content ul, 
+        .markdown-content ol {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            color: var(--text-primary);
+        }
+        
+        .markdown-content li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .markdown-content code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            background-color: var(--bg-tertiary);
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 0.85em;
+            color: var(--text-primary);
+        }
+        
+        .markdown-content pre {
+            background-color: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 1rem;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+        
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+            font-size: 0.85em;
+            color: var(--text-primary);
+        }
+        
+        .markdown-content blockquote {
+            border-left: 4px solid var(--primary);
+            padding: 0 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            background-color: var(--bg-secondary);
+            border-radius: 0 6px 6px 0;
+        }
+        
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        
+        .markdown-content th, 
+        .markdown-content td {
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            text-align: left;
+            color: var(--text-primary);
+        }
+        
+        .markdown-content th {
+            background-color: var(--bg-secondary);
+            font-weight: 600;
+        }
+        
+        .markdown-content img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+        }
+        
+        .markdown-content hr {
+            border: 0;
+            border-top: 1px solid var(--border);
+            margin: 2rem 0;
+        }
+    </style>
     
     <!-- 预加载主题设置，避免闪烁 -->
     <script>
@@ -22,62 +148,83 @@
         })();
     </script>
 </head>
-<body>
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
     <div class="theme-switch-container">
-        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary">
+        <button id="theme-toggle" class="btn btn-sm btn-outline-secondary rounded-full shadow-lg">
             <i class="bi bi-moon"></i>
         </button>
     </div>
 
-    <div class="file-detail-container">
-        <div class="file-header">
-            <div>
-                <h1 class="file-title">
-                    <i class="bi bi-file-earmark" id="file-icon"></i>
-                    <span id="file-name">文件详情</span>
-                </h1>
-                <div class="file-info">
+    <div class="container py-6">
+        <div class="card shadow-xl rounded-2xl overflow-hidden">
+            <div class="card-header bg-gradient-primary text-white py-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-file-earmark text-4xl me-3" id="file-icon"></i>
+                        <h1 class="file-title text-xl font-bold mb-0">
+                            <span id="file-name" class="text-break">文件详情</span>
+                        </h1>
+                    </div>
+                    <div class="action-buttons d-flex gap-2 flex-wrap">
+                        <a href="#" id="download-btn" class="btn btn-light text-primary">
+                            <i class="bi bi-download"></i> 下载文件
+                        </a>
+                        <button id="back-btn" class="btn btn-outline-light">
+                            <i class="bi bi-arrow-left"></i> 返回
+                        </button>
+                    </div>
+                </div>
+                <div class="file-info text-white/80 mt-2">
                     <span id="file-size"></span>
                     <span id="file-type"></span>
                 </div>
             </div>
-            <div class="action-buttons">
-                <a href="#" id="download-btn" class="btn btn-light">
-                    <i class="bi bi-download"></i> 下载文件
-                </a>
-                <button id="back-btn" class="btn btn-outline-light">
-                    <i class="bi bi-arrow-left"></i> 返回
-                </button>
-            </div>
-        </div>
-        
-        <div class="file-content">
-            <div class="preview-container" id="preview-container">
-                <div class="text-center">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">加载中...</span>
-                    </div>
-                    <p class="mt-3">正在加载文件预览...</p>
-                </div>
-            </div>
             
-            <div class="file-meta">
-                <div class="meta-grid">
-                    <div class="meta-item">
-                        <span class="meta-label">上传时间</span>
-                        <span class="meta-value" id="upload-time"></span>
+            <div class="card-body p-6">
+                <div class="preview-container" id="preview-container">
+                    <div class="text-center py-8">
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-4 text-lg">正在加载文件预览...</p>
                     </div>
-                    <div class="meta-item">
-                        <span class="meta-label">最后修改</span>
-                        <span class="meta-value" id="modified-time"></span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="meta-label">下载次数</span>
-                        <span class="meta-value" id="download-count"></span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="meta-label">文件类型</span>
-                        <span class="meta-value" id="file-type-full"></span>
+                </div>
+                
+                <div class="file-meta mt-6">
+                    <h5 class="text-lg font-semibold mb-4">文件信息</h5>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="card p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                                    <span class="text-muted">上传时间</span>
+                                    <span id="upload-time" class="font-medium text-dark dark:text-white text-break"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="card p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                                    <span class="text-muted">最后修改</span>
+                                    <span id="modified-time" class="font-medium text-dark dark:text-white text-break"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="card p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                                    <span class="text-muted">下载次数</span>
+                                    <span id="download-count" class="font-medium text-dark dark:text-white text-break"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="card p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                                <div class="d-flex flex-column flex-sm-row justify-content-between gap-2">
+                                    <span class="text-muted">文件类型</span>
+                                    <span id="file-type-full" class="font-medium text-dark dark:text-white text-break"></span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -765,23 +912,29 @@
                                 // 渲染预览内容
                             const previewContent = document.getElementById('preview-content');
                             if (ext === 'md' || ext === 'markdown') {
-                                // 检测当前主题
-                                const isDark = document.documentElement.hasAttribute('data-theme');
-                                const theme = isDark ? 'dark' : 'light';
-                                // 使用iframe嵌入Markdown查看器
-                                previewContent.innerHTML = `<iframe src="${window.location.origin}/markdown-viewer?file=${encodeURIComponent(filename)}&theme=${theme}" style="width: 100%; height: 600px; border: none; border-radius: 6px;"></iframe>`;
+                                // 使用marked.js渲染Markdown
+                                const html = marked.parse(content);
+                                previewContent.innerHTML = `
+                                    <div class="markdown-content" style="max-width: 800px; margin: 0 auto; padding: 1rem;">
+                                        ${html}
+                                    </div>
+                                `;
+                                // 使用highlight.js高亮代码
+                                previewContent.querySelectorAll('pre code').forEach((block) => {
+                                    hljs.highlightElement(block);
+                                });
                             } else {
                                 // HTML预览
                                 previewContent.innerHTML = content;
                             }
-                            } else {
-                                // 其他文本文件直接显示
-                                previewContainer.innerHTML = `
-                                    <div class="text-preview-container">
-                                        <pre><code>${content}</code></pre>
-                                    </div>
-                                `;
-                            }
+                        } else {
+                            // 其他文本文件直接显示
+                            previewContainer.innerHTML = `
+                                <div class="text-preview-container">
+                                    <pre><code>${content}</code></pre>
+                                </div>
+                            `;
+                        }
                         })
                         .catch(error => {
                             previewContainer.innerHTML = `
@@ -813,38 +966,46 @@
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modern.js') }}"></script>
     <script>
-        // 返回按钮逻辑 - 根据来源页面或用户角色返回到正确的页面
-        document.getElementById('back-btn').addEventListener('click', function() {
-            // 检查当前URL中是否包含admin相关参数
-            const urlParams = new URLSearchParams(window.location.search);
-            const fromAdmin = urlParams.get('from') === 'admin' || urlParams.get('return_to') === 'admin';
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化ModernApp
+            const app = new ModernApp();
             
-            // 或者检查用户是否为管理员（如果有相关信息存储在localStorage或sessionStorage中）
-            const isAdmin = sessionStorage.getItem('is_admin') === 'true' || localStorage.getItem('is_admin') === 'true';
-            
-            // 获取从管理页过来时的哈希值（如果有）
-            const adminHash = sessionStorage.getItem('admin_page_hash') || localStorage.getItem('admin_page_hash');
-            
-            if (fromAdmin || isAdmin) {
-                // 如果是从管理页过来的，或者是管理员，返回到管理页，并保留哈希值
-                if (adminHash) {
-                    window.location.href = `/admin${adminHash}`;
-                } else {
-                    window.location.href = '/admin';
-                }
-            } else {
-                // 否则，使用浏览器的历史记录返回上一页
-                if (document.referrer) {
-                    window.location.href = document.referrer;
-                } else {
-                    // 如果没有历史记录，返回到首页
-                    window.location.href = '/';
-                }
+            // 返回按钮逻辑 - 根据来源页面或用户角色返回到正确的页面
+            const backBtn = document.getElementById('back-btn');
+            if (backBtn) {
+                backBtn.addEventListener('click', function() {
+                    // 检查当前URL中是否包含admin相关参数
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const fromAdmin = urlParams.get('from') === 'admin' || urlParams.get('return_to') === 'admin';
+                    
+                    // 或者检查用户是否为管理员（如果有相关信息存储在localStorage或sessionStorage中）
+                    const isAdmin = sessionStorage.getItem('is_admin') === 'true' || localStorage.getItem('is_admin') === 'true';
+                    
+                    // 获取从管理页过来时的哈希值（如果有）
+                    const adminHash = sessionStorage.getItem('admin_page_hash') || localStorage.getItem('admin_page_hash');
+                    
+                    if (fromAdmin || isAdmin) {
+                        // 如果是从管理页过来的，或者是管理员，返回到管理页，并保留哈希值
+                        if (adminHash) {
+                            window.location.href = `/admin${adminHash}`;
+                        } else {
+                            window.location.href = '/admin';
+                        }
+                    } else {
+                        // 否则，使用浏览器的历史记录返回上一页
+                        if (document.referrer) {
+                            window.location.href = document.referrer;
+                        } else {
+                            // 如果没有历史记录，返回到首页
+                            window.location.href = '/';
+                        }
+                    }
+                });
             }
         });
-        
     </script>
 </body>
 </html>

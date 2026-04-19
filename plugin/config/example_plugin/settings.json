@@ -1,0 +1,7 @@
+{
+    "api_enabled": true,
+    "option1": "value1",
+    "option2": true,
+    "option3": 100,
+    "debug_mode": "info"
+}
